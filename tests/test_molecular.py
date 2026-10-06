@@ -130,3 +130,62 @@ def test_h2_sto3g_equilibrium_geometry():
     assert n_elec == 2
     assert np.isclose(s_z, 0.0)
 
+
+def test_h2_sto3g_potential_curve_geometries():
+    r"""Phase 20: Shorter and stretched bonds, and dissociation toward isolated atoms.
+
+    Tests three geometries along the H2 STO-3G potential curve from the same
+    citation family (Szabo & Ostlund Appendix D / Whitfield et al. / O'Malley et al.):
+    - Shorter bond: R = 1.0 a.u., E_FCI = -1.07897 Hartree
+    - Equilibrium bond: R = 1.401 a.u., E_FCI = -1.13727 Hartree
+    - Stretched bond: R = 3.0 a.u., E_FCI = -0.98516 Hartree
+
+    Dissociation check:
+    As the bond stretches (R = 1.401 -> 2.0 -> 3.0), the energy increases monotonically
+    toward the sum of two isolated STO-3G hydrogen atoms:
+    2 * E(H atom, STO-3G) = 2 * (-0.466582) = -0.933164 Hartree.
+    """
+    from eigenlab.molecular import H_ATOM_STO3G_ENERGY
+
+    # Shorter bond: R = 1.0 a.u.
+    H_short = h2_sto3g_hamiltonian(1.0)
+    E_short = spectrum(H_short)[0]
+    assert np.isclose(E_short, -1.07897, atol=1e-4)
+
+    # Equilibrium bond: R = 1.401 a.u.
+    H_eq = h2_sto3g_hamiltonian(1.401)
+    E_eq = spectrum(H_eq)[0]
+    assert np.isclose(E_eq, -1.13727, atol=1e-4)
+
+    # Intermediate stretched bond: R = 2.0 a.u.
+    H_mid = h2_sto3g_hamiltonian(2.0)
+    E_mid = spectrum(H_mid)[0]
+    assert np.isclose(E_mid, -1.08850, atol=1e-4)
+
+    # Stretched bond: R = 3.0 a.u.
+    H_stretch = h2_sto3g_hamiltonian(3.0)
+    E_stretch = spectrum(H_stretch)[0]
+    assert np.isclose(E_stretch, -0.98516, atol=1e-4)
+
+    # Equilibrium geometry is the energy minimum
+    assert E_eq < E_short
+    assert E_eq < E_mid < E_stretch
+
+    # Two isolated STO-3G hydrogen atoms asymptote
+    E_two_atoms = 2.0 * H_ATOM_STO3G_ENERGY
+    assert np.isclose(E_two_atoms, -0.933164, atol=1e-5)
+
+    # Stretched geometry energy is bounded above by the two-atom limit and
+    # moves progressively closer to it than equilibrium or intermediate bonds
+    assert E_stretch < E_two_atoms
+    assert abs(E_stretch - E_two_atoms) < abs(E_mid - E_two_atoms)
+    assert abs(E_mid - E_two_atoms) < abs(E_eq - E_two_atoms)
+
+    # Sector tagging remains N = 2, S_z = 0 across geometries
+    for H_geom in [H_short, H_eq, H_mid, H_stretch]:
+        evals, evecs = eigensystem(H_geom)
+        tags = tag_sectors(evecs, n_spatial=2)
+        assert tags[0][0] == 2
+        assert np.isclose(tags[0][1], 0.0)
+
+

@@ -112,6 +112,11 @@ def spatial_to_spin_orbital(
     return h1_spin, h2_spin
 
 
+# Energy of an isolated hydrogen atom in STO-3G minimal basis (Hartree)
+# Asymptote for two dissociated hydrogen atoms is 2 * H_ATOM_STO3G_ENERGY = -0.933164 Hartree
+H_ATOM_STO3G_ENERGY = -0.466582
+
+
 def h2_sto3g_integrals(
     bond_length_au: float = 1.401,
 ) -> tuple[np.ndarray, np.ndarray, float]:
@@ -120,11 +125,13 @@ def h2_sto3g_integrals(
     Parameters
     ----------
     bond_length_au : float
-        Internuclear distance R in atomic units (bohr). Defaults to 1.401 a.u.
-        (approx. 0.7414 Å), the equilibrium bond length transcribed from:
-        - Whitfield et al., Mol. Phys. 109, 735-750 (2011), arXiv:1001.3855, Table 7
-        - Seeley et al., J. Chem. Phys. 137, 224109 (2012), Table III
-        - Szabo & Ostlund, Modern Quantum Chemistry (1996), Section 3.5 & Appendix D
+        Internuclear distance R in atomic units (bohr). Supported geometries from
+        the Szabo & Ostlund (1996, Section 3.5 & Appendix D) / Whitfield et al. (2011)
+        / O'Malley et al. (2016) reference family:
+        - R = 1.0 a.u. (compressed/shorter bond)
+        - R = 1.401 a.u. (approx. 0.7414 Å, equilibrium bond length)
+        - R = 2.0 a.u. (stretched bond)
+        - R = 3.0 a.u. (stretched bond, dissociating toward isolated atoms)
 
     Returns
     -------
@@ -135,24 +142,60 @@ def h2_sto3g_integrals(
     nuclear_repulsion : float
         Nuclear repulsion energy V_nuc = 1/R in Hartree.
     """
-    if np.isclose(bond_length_au, 1.401, atol=1e-3):
+    if np.isclose(bond_length_au, 1.401, atol=1e-3) or np.isclose(bond_length_au, 1.4, atol=1e-3):
         # Equilibrium geometry: R = 1.401 a.u. (0.7414 Å)
-        # Nuclear repulsion V_nuc = 1/R = 1/1.401 = 0.71377587... Hartree
-        v_nuc = 1.0 / 1.401
-        h1 = np.zeros((2, 2), dtype=float)
-        h1[0, 0] = -1.252477
-        h1[1, 1] = -0.475934
-
-        h2 = np.zeros((2, 2, 2, 2), dtype=float)
-        h2[0, 0, 0, 0] = 0.674493
-        h2[1, 1, 1, 1] = 0.697397
-        h2[0, 0, 1, 1] = 0.663472
-        h2[1, 1, 0, 0] = 0.663472
-        for p, q, r, s in [(0, 1, 1, 0), (1, 0, 0, 1), (0, 1, 0, 1), (1, 0, 1, 0)]:
-            h2[p, q, r, s] = 0.181287
-        return h1, h2, v_nuc
+        v_nuc = 1.0 / float(bond_length_au)
+        h00 = -1.252477
+        h11 = -0.475934
+        g0000 = 0.674493
+        g1111 = 0.697397
+        g0011 = 0.663472
+        g0110 = 0.181287
+    elif np.isclose(bond_length_au, 1.0, atol=1e-3):
+        # Shorter / compressed bond: R = 1.0 a.u.
+        v_nuc = 1.0
+        h00 = -1.390219
+        h11 = -0.291653
+        g0000 = 0.714439
+        g1111 = 0.738837
+        g0011 = 0.701853
+        g0110 = 0.170241
+    elif np.isclose(bond_length_au, 2.0, atol=1e-3):
+        # Stretched bond: R = 2.0 a.u.
+        v_nuc = 0.5
+        h00 = -1.082695
+        h11 = -0.604948
+        g0000 = 0.616220
+        g1111 = 0.643875
+        g0011 = 0.613198
+        g0110 = 0.200522
+    elif np.isclose(bond_length_au, 3.0, atol=1e-3):
+        # Stretched bond: R = 3.0 a.u.
+        v_nuc = 1.0 / 3.0
+        h00 = -0.880883
+        h11 = -0.669233
+        g0000 = 0.543158
+        g1111 = 0.573432
+        g0011 = 0.551226
+        g0110 = 0.235117
     else:
-        raise ValueError(f"Unsupported bond length: {bond_length_au} a.u.")
+        raise ValueError(
+            f"Unsupported bond length: {bond_length_au} a.u. Supported: 1.0, 1.401, 2.0, 3.0"
+        )
+
+    h1 = np.zeros((2, 2), dtype=float)
+    h1[0, 0] = h00
+    h1[1, 1] = h11
+
+    h2 = np.zeros((2, 2, 2, 2), dtype=float)
+    h2[0, 0, 0, 0] = g0000
+    h2[1, 1, 1, 1] = g1111
+    h2[0, 0, 1, 1] = g0011
+    h2[1, 1, 0, 0] = g0011
+    for p, q, r, s in [(0, 1, 1, 0), (1, 0, 0, 1), (0, 1, 0, 1), (1, 0, 1, 0)]:
+        h2[p, q, r, s] = g0110
+
+    return h1, h2, v_nuc
 
 
 def h2_sto3g_hamiltonian(
@@ -165,4 +208,5 @@ def h2_sto3g_hamiltonian(
     h1, h2, v_nuc = h2_sto3g_integrals(bond_length_au)
     h1_spin, h2_spin = spatial_to_spin_orbital(h1, h2)
     return integral_hamiltonian(h1_spin, h2_spin, nuclear_repulsion=v_nuc)
+
 
