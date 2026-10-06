@@ -119,11 +119,21 @@ def transverse_ising(
     return transverse_ising_terms(qubits, coupling=coupling, field=field).to_matrix()
 
 
-def spectrum(hamiltonian: np.ndarray | Hamiltonian) -> np.ndarray:
-    """Ascending eigenvalues of a Hermitian operator."""
+def eigensystem(hamiltonian: np.ndarray | Hamiltonian) -> tuple[np.ndarray, np.ndarray]:
+    """Ascending energies and orthonormal eigenvectors (as columns) of a Hermitian operator."""
     if isinstance(hamiltonian, Hamiltonian):
         mat = hamiltonian.to_matrix()
     else:
         mat = np.asarray(hamiltonian, dtype=complex)
-    values = np.linalg.eigvalsh(mat)
-    return np.real(values)
+    values, vectors = np.linalg.eigh(mat)
+    return np.real(values), vectors
+
+
+diagonalize = eigensystem
+eigen = eigensystem
+
+
+def spectrum(hamiltonian: np.ndarray | Hamiltonian) -> np.ndarray:
+    """Ascending eigenvalues of a Hermitian operator."""
+    energies, _ = eigensystem(hamiltonian)
+    return energies
