@@ -7,6 +7,25 @@ import numpy as np
 ZERO = np.array([1, 0], dtype=complex)
 ONE = np.array([0, 1], dtype=complex)
 PLUS = np.array([1, 1], dtype=complex) / np.sqrt(2)
+PLUS_I = np.array([1, 1j], dtype=complex) / np.sqrt(2)
+
+
+def bloch(state: np.ndarray) -> np.ndarray:
+    """Bloch vector (r_x, r_y, r_z) of a one-qubit ket.
+
+    Pure states lie on the unit sphere S^2. Multi-qubit states are rejected.
+    """
+    ket = np.asarray(state, dtype=complex).reshape(-1)
+    if ket.size != 2:
+        raise ValueError("state must be a one-qubit ket")
+    norm = np.linalg.norm(ket)
+    if norm == 0:
+        raise ValueError("state has zero norm")
+    ket = ket / norm
+    rx = 2.0 * float((np.conj(ket[0]) * ket[1]).real)
+    ry = 2.0 * float((np.conj(ket[0]) * ket[1]).imag)
+    rz = float((np.abs(ket[0]) ** 2 - np.abs(ket[1]) ** 2).real)
+    return np.array([rx, ry, rz], dtype=float)
 
 
 def basis(index: int, qubits: int) -> np.ndarray:
