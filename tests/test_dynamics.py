@@ -43,3 +43,51 @@ def test_exact_evolution():
     psi_ti = (basis(0, 3) + basis(2, 3) + basis(7, 3)) / np.sqrt(3)
     psi_ti_2pi = evolve(ti_int, psi_ti, 2.0 * np.pi)
     assert np.allclose(psi_ti_2pi, psi_ti)
+
+
+def test_one_spin_closed_form():
+    # Phase 11:
+    # Hamiltonian H = (ω/2) Z, starting in |+⟩ = (|0⟩ + |1⟩)/√2.
+    # Schrödinger equation: i d|ψ⟩/dt = H|ψ⟩
+    # |ψ(t)⟩ = exp(-i H t) |+⟩ = (exp(-i ω t / 2)|0⟩ + exp(+i ω t / 2)|1⟩)/√2.
+    #
+    # Derivation of ⟨X(t)⟩:
+    # ⟨X(t)⟩ = ⟨ψ(t)|X|ψ(t)⟩ = (exp(i ω t) + exp(-i ω t)) / 2 = cos(ω t).
+    #
+    # Derivation of ⟨Y(t)⟩:
+    # Ehrenfest / Heisenberg equation:
+    # d⟨X⟩/dt = i ⟨[H, X]⟩ = i ⟨[(ω/2)Z, X]⟩ = i (ω/2) (2i ⟨Y⟩) = -ω ⟨Y⟩.
+    # Since ⟨X(t)⟩ = cos(ω t), d⟨X⟩/dt = -ω sin(ω t).
+    # Therefore -ω ⟨Y(t)⟩ = -ω sin(ω t)  ==>  ⟨Y(t)⟩ = +sin(ω t).
+    #
+    # Alternatively via wave function:
+    # Y|ψ(t)⟩ = (-i exp(+i ω t / 2)|0⟩ + i exp(-i ω t / 2)|1⟩)/√2
+    # ⟨ψ(t)|Y|ψ(t)⟩ = (-i exp(i ω t) + i exp(-i ω t)) / 2
+    #              = -i (2i sin(ω t)) / 2 = +sin(ω t).
+    from eigenlab.pauli import X, Y, Z
+
+    for omega in [1.0, 2.5, 0.4]:
+        h_spin = 0.5 * omega * Z
+        psi0 = PLUS
+
+        # Check at arbitrary t
+        for t in [0.2, 0.8, 1.7]:
+            psi_t = evolve(h_spin, psi0, t)
+            assert np.isclose(expectation(X, psi_t), np.cos(omega * t))
+            assert np.isclose(expectation(Y, psi_t), np.sin(omega * t))
+
+        # Check specific required points: t = 0, π/(2ω), π/ω
+        # 1. t = 0: ⟨X(0)⟩ = 1, ⟨Y(0)⟩ = 0
+        psi_0 = evolve(h_spin, psi0, 0.0)
+        assert np.isclose(expectation(X, psi_0), 1.0)
+        assert np.isclose(expectation(Y, psi_0), 0.0)
+
+        # 2. t = π/(2ω): cos(π/2) = 0, sin(π/2) = +1
+        psi_half = evolve(h_spin, psi0, np.pi / (2.0 * omega))
+        assert np.isclose(expectation(X, psi_half), 0.0, atol=1e-12)
+        assert np.isclose(expectation(Y, psi_half), 1.0, atol=1e-12)
+
+        # 3. t = π/ω: cos(π) = -1, sin(π) = 0
+        psi_pi = evolve(h_spin, psi0, np.pi / omega)
+        assert np.isclose(expectation(X, psi_pi), -1.0, atol=1e-12)
+        assert np.isclose(expectation(Y, psi_pi), 0.0, atol=1e-12)
