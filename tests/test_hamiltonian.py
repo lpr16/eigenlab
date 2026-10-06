@@ -132,3 +132,41 @@ def test_xxz_dimer():
 
     # Δ = 0 has energies −2, 0, 0, 2
     assert np.allclose(spectrum(xxz_dimer(0.0)), [-2.0, 0.0, 0.0, 2.0])
+
+
+def test_transverse_ising_hand_limits():
+    # Phase 9:
+    # 1. For two sites and zero field, H = −J ZZ has energies −J, −J, +J, +J
+    # Proof: ZZ|00⟩ = |00⟩, ZZ|11⟩ = |11⟩ (E = -J)
+    #        ZZ|01⟩ = -|01⟩, ZZ|10⟩ = -|10⟩ (E = +J)
+    for j_val in [1.0, 2.5, 0.7]:
+        h_two_site_zero_field = transverse_ising(2, coupling=j_val, field=0.0)
+        energies = spectrum(h_two_site_zero_field)
+        assert np.allclose(energies, [-j_val, -j_val, j_val, j_val])
+
+    # 2. Observables for n = 3, J = 1 at h = 0 and h = 20
+    # Observables ∑ X and ∑ Z
+    sum_x = Hamiltonian([(1.0, "XII"), (1.0, "IXI"), (1.0, "IIX")])
+    sum_z = Hamiltonian([(1.0, "ZII"), (1.0, "IZI"), (1.0, "IIZ")])
+
+    # At h = 0 (ferromagnetic limit):
+    # Ground space is spanned by |000⟩ and |111⟩.
+    # ⟨∑ X⟩ = 0 identically. ⟨∑ Z⟩ = ±3.
+    _, v_h0 = eigensystem(transverse_ising(3, coupling=1.0, field=0.0))
+    gs_h0 = v_h0[:, 0]
+    exp_x_h0 = sum_x.expectation(gs_h0)
+    exp_z_h0 = sum_z.expectation(gs_h0)
+    assert np.isclose(exp_x_h0, 0.0, atol=1e-12)
+    assert np.isclose(abs(exp_z_h0), 3.0, atol=1e-12)
+
+    # At large field h = 20:
+    # Ground state approaches |+⟩^⊗3.
+    # ⟨∑ X⟩ → n = 3, ⟨∑ Z⟩ → 0.
+    _, v_h20 = eigensystem(transverse_ising(3, coupling=1.0, field=20.0))
+    gs_h20 = v_h20[:, 0]
+    exp_x_h20 = sum_x.expectation(gs_h20)
+    exp_z_h20 = sum_z.expectation(gs_h20)
+    # Exact perturbation: ⟨∑ X⟩ = 3 - 3/(4 h²) + O(h⁻⁴) ≈ 3 - 3/1600 = 2.998125...
+    # Here h=20, coupling=1 => ⟨∑ X⟩ > 2.998, ⟨∑ Z⟩ < 1e-12
+    assert 2.998 < exp_x_h20 <= 3.0
+    assert np.isclose(exp_z_h20, 0.0, atol=1e-12)
