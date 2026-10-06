@@ -2,7 +2,19 @@ import numpy as np
 
 import pytest
 
-from eigenlab.states import PLUS, PLUS_I, ZERO, ONE, basis, bell, bloch, density, probabilities, purity
+from eigenlab.states import (
+    ONE,
+    PLUS,
+    PLUS_I,
+    ZERO,
+    basis,
+    bell,
+    bloch,
+    density,
+    partial_trace,
+    probabilities,
+    purity,
+)
 
 
 def test_phi_plus_is_correlated():
@@ -58,3 +70,28 @@ def test_density_and_purity():
     unnormalized = (3.0 + 4.0j) * PLUS
     assert np.allclose(density(unnormalized), density(PLUS))
     assert np.isclose(purity(unnormalized), 1.0)
+
+
+def test_partial_trace():
+    # Phase 3:
+    # 1. |00⟩ traced over qubit 1 is |0⟩⟨0| (keep qubit 0)
+    ket_00 = basis(0, 2)
+    rho_00 = density(ket_00)
+    reduced_0 = partial_trace(rho_00, 2, keep=0)
+    assert np.allclose(reduced_0, density(ZERO))
+    # Also verify passing ket directly
+    assert np.allclose(partial_trace(ket_00, 2, keep=0), density(ZERO))
+
+    # 2. Either reduction of bell("phi+") is I/2
+    # Traced over qubit 1 (keep 0) or traced over qubit 0 (keep 1):
+    phi_plus = bell("phi+")
+    red_keep_0 = partial_trace(phi_plus, 2, keep=0)
+    red_keep_1 = partial_trace(phi_plus, 2, keep=1)
+    i_over_2 = 0.5 * np.eye(2)
+    assert np.allclose(red_keep_0, i_over_2)
+    assert np.allclose(red_keep_1, i_over_2)
+
+    # 3. Tracing both sides returns 1
+    tr_both = partial_trace(phi_plus, 2, keep=[])
+    assert tr_both == 1
+    assert np.isclose(tr_both, 1.0)

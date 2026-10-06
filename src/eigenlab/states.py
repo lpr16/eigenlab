@@ -58,6 +58,51 @@ def purity(rho: np.ndarray) -> float:
     return float(val.real)
 
 
+def partial_trace(
+    rho: np.ndarray,
+    qubits: int,
+    keep: int | list[int] | tuple[int, ...] = (),
+) -> np.ndarray | float | int:
+    """Partial trace of a density operator or ket over unkept qubits.
+
+    qubits: total number of qubits.
+    keep: index or collection of qubit indices to retain.
+          If empty, traces out all qubits and returns the total trace.
+    """
+    mat = np.asarray(rho, dtype=complex)
+    if mat.ndim == 1:
+        mat = density(mat)
+    elif mat.ndim != 2 or mat.shape != (1 << qubits, 1 << qubits):
+        raise ValueError("rho shape does not match the given number of qubits")
+
+    if isinstance(keep, int):
+        keep_qubits = [keep]
+    else:
+        keep_qubits = list(keep)
+
+    for q in keep_qubits:
+        if not 0 <= q < qubits:
+            raise ValueError(f"qubit index {q} out of range for {qubits} qubits")
+    if len(set(keep_qubits)) != len(keep_qubits):
+        raise ValueError("duplicate qubit indices in keep")
+
+    if len(keep_qubits) == 0:
+        val = float(np.real(np.trace(mat)))
+        if np.isclose(val, round(val), atol=1e-10):
+            return int(round(val))
+        return val
+
+    tensor = mat.reshape([2] * (2 * qubits))
+    in_indices = list(range(2 * qubits))
+    for q in range(qubits):
+        if q not in keep_qubits:
+            in_indices[qubits + q] = q
+    out_indices = keep_qubits + [qubits + q for q in keep_qubits]
+    res = np.einsum(tensor, in_indices, out_indices)
+    k = len(keep_qubits)
+    return res.reshape((1 << k, 1 << k))
+
+
 def bell(kind: str = "phi+") -> np.ndarray:
     """One of the four Bell states."""
     phi_plus = (np.kron(ZERO, ZERO) + np.kron(ONE, ONE)) / np.sqrt(2)
