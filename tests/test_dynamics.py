@@ -128,3 +128,49 @@ def test_first_order_trotter_step():
         psi_ev = evolve(h_comm2, psi_2q, dt)
         assert np.allclose(psi_trot, psi_ev)
         assert np.allclose(trotter_unitary(h_comm2, dt) @ psi_2q, psi_ev)
+
+
+def test_noncommuting_trotter_and_strang_error():
+    # Phase 13:
+    # Two-site transverse Ising: H = -J ZZ - h (XI + IX), where [ZZ, XI] != 0
+    from eigenlab.dynamics import strang_unitary, trotter_unitary, unitary
+    from eigenlab.hamiltonian import transverse_ising_terms
+
+    h = transverse_ising_terms(2, coupling=1.0, field=1.0)
+
+    # Step sizes: several steps with successive halving
+    dt_list = [0.1, 0.05, 0.025, 0.0125]
+    err_first_order: list[float] = []
+    err_strang: list[float] = []
+
+    for dt in dt_list:
+        u_exact = unitary(h, dt)
+        u_trot = trotter_unitary(h, dt)
+        u_strang = strang_unitary(h, dt)
+
+        # Frobenius distance: ||U_approx - U_exact||_F
+        dist_trot = float(np.linalg.norm(u_trot - u_exact, ord="fro"))
+        dist_strang = float(np.linalg.norm(u_strang - u_exact, ord="fro"))
+
+        err_first_order.append(dist_trot)
+        err_strang.append(dist_strang)
+
+    # 1. Halving Δt cuts first-order distance by about 4: (Δt/2)² / Δt² = 1/4 => ratio ≈ 4
+    for i in range(len(dt_list) - 1):
+        ratio_first = err_first_order[i] / err_first_order[i + 1]
+        assert np.isclose(ratio_first, 4.0, atol=0.05)
+
+    # 2. Halving Δt cuts Strang distance by about 8: (Δt/2)³ / Δt³ = 1/8 => ratio ≈ 8
+    for i in range(len(dt_list) - 1):
+        ratio_strang = err_strang[i] / err_strang[i + 1]
+        assert np.isclose(ratio_strang, 8.0, atol=0.05)
+
+    # 3. Log-log slope check with tight fixed tolerance around 2 and 3
+    # log(error) ≈ p * log(dt) + c
+    log_dts = np.log(dt_list)
+    slope_first = float(np.polyfit(log_dts, np.log(err_first_order), 1)[0])
+    slope_strang = float(np.polyfit(log_dts, np.log(err_strang), 1)[0])
+
+    # Tight tolerance around 2 and 3
+    assert np.isclose(slope_first, 2.0, atol=0.01)
+    assert np.isclose(slope_strang, 3.0, atol=0.01)
