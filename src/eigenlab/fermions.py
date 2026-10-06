@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import numpy as np
+
 from eigenlab.hamiltonian import Hamiltonian
 
 
@@ -117,3 +119,44 @@ def hubbard_dimer(t: float = 1.0, U: float = 0.0) -> Hamiltonian:
     )
     h = (-float(t) * h_hop) + (float(U) * h_u)
     return h.simplify()
+
+
+def tag_sectors(
+    state: np.ndarray,
+    n_spatial: int,
+    tol: float = 1e-8,
+) -> tuple[int, float] | list[tuple[int, float]]:
+    """Tag an eigenvector or collection of eigenvectors by ⟨N⟩ and ⟨S_z⟩.
+
+    Rejects any state whose ⟨N⟩ is not within `tol` (default 1e-8) of an integer.
+    """
+    arr = np.asarray(state, dtype=complex)
+    n_orbitals = 2 * n_spatial
+    ntot = total_number_operator(n_orbitals)
+    sztot = total_spin_z(n_spatial)
+
+    def _tag_single(vec: np.ndarray) -> tuple[int, float]:
+        norm = np.linalg.norm(vec)
+        if norm == 0:
+            raise ValueError("state has zero norm")
+        ket = vec / norm
+        exp_n = ntot.expectation(ket)
+        if abs(exp_n - round(exp_n)) > tol:
+            raise ValueError(f"<N> = {exp_n} is not within {tol} of an integer")
+        n_int = int(round(exp_n))
+        exp_sz = sztot.expectation(ket)
+        val_sz = float(np.round(exp_sz, 8))
+        if abs(val_sz) < 1e-8:
+            val_sz = 0.0
+        return n_int, val_sz
+
+    if arr.ndim == 1 or (arr.ndim == 2 and (arr.shape[0] == 1 or arr.shape[1] == 1)):
+        return _tag_single(arr.reshape(-1))
+    elif arr.ndim == 2:
+        return [_tag_single(arr[:, col]) for col in range(arr.shape[1])]
+    else:
+        raise ValueError("state must be a 1D vector or 2D matrix of eigenvectors")
+
+
+tag_sector = tag_sectors
+sector = tag_sectors

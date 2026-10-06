@@ -210,3 +210,67 @@ def test_hubbard_dimer():
     for u_test in [1.2, 5.0]:
         root_t0 = (u_test - np.sqrt(u_test**2 + 0.0)) / 2.0
         assert np.isclose(root_t0, 0.0)
+
+
+def test_sectors():
+    # Phase 17:
+    # 1. Tag eigenvectors by ⟨N⟩ and ⟨S_z⟩.
+    # 2. Hubbard ground state from phase 16 sits at N = 2, S_z = 0.
+    # 3. A one-electron hopping eigenstate sits at N = 1.
+    # 4. Reject a vector whose ⟨N⟩ is not within 1e-8 of an integer.
+    import pytest
+    from eigenlab.fermions import (
+        hubbard_dimer,
+        jordan_wigner_adag,
+        tag_sectors,
+        total_number_operator,
+        total_spin_z,
+    )
+    from eigenlab.hamiltonian import eigensystem
+
+    # 2. Hubbard ground state at t=1, U=2 sits at N = 2, S_z = 0
+    h_hub = hubbard_dimer(t=1.0, U=2.0)
+    n_tot = total_number_operator(4)
+    sz_tot = total_spin_z(2)
+    energies, vectors = eigensystem(h_hub, commuting=[n_tot, sz_tot])
+
+    ground_state = vectors[:, 0]
+    n_tag, sz_tag = tag_sectors(ground_state, n_spatial=2)
+    assert n_tag == 2
+    assert np.isclose(sz_tag, 0.0)
+
+    # 3. A one-electron hopping eigenstate sits at N = 1
+    # Creation of an electron on vacuum:
+    vac = basis(0, 4)
+    # One electron with spin up (orbital 0) or spin down (orbital 1)
+    one_electron_up = (jordan_wigner_adag(0, 4).to_matrix() + jordan_wigner_adag(2, 4).to_matrix()) @ vac
+    one_electron_up /= np.linalg.norm(one_electron_up)
+    n_1e, sz_1e = tag_sectors(one_electron_up, n_spatial=2)
+    assert n_1e == 1
+    assert np.isclose(sz_1e, 0.5)
+
+    one_electron_dn = (jordan_wigner_adag(1, 4).to_matrix() - jordan_wigner_adag(3, 4).to_matrix()) @ vac
+    one_electron_dn /= np.linalg.norm(one_electron_dn)
+    n_1e_dn, sz_1e_dn = tag_sectors(one_electron_dn, n_spatial=2)
+    assert n_1e_dn == 1
+    assert np.isclose(sz_1e_dn, -0.5)
+
+    # Also check tagging a matrix of all eigenvectors
+    all_tags = tag_sectors(vectors, n_spatial=2)
+    assert len(all_tags) == 16
+    for n_val, sz_val in all_tags:
+        assert isinstance(n_val, int)
+        assert 0 <= n_val <= 4
+
+    # 4. Reject a vector whose ⟨N⟩ is not within 1e-8 of an integer
+    # Create superposition of N=0 and N=1 states:
+    superposed_n = (basis(0, 4) + basis(1, 4)) / np.sqrt(2)
+    with pytest.raises(ValueError, match="integer"):
+        tag_sectors(superposed_n, n_spatial=2)
+
+    # State with ⟨N⟩ = 1.00000002 (violates 1e-8)
+    # |ψ⟩ = cos(ε)|1e⟩ + sin(ε)|2e⟩ with sin²(ε) ≈ 2e-8
+    eps = 1.5e-4  # sin²(eps) ≈ 2.25e-8 > 1e-8
+    bad_state = np.cos(eps) * basis(1, 4) + np.sin(eps) * basis(3, 4)
+    with pytest.raises(ValueError, match="integer"):
+        tag_sectors(bad_state, n_spatial=2, tol=1e-8)
