@@ -37,6 +37,27 @@ def basis(index: int, qubits: int) -> np.ndarray:
     return ket
 
 
+def density(state: np.ndarray) -> np.ndarray:
+    """Density operator ρ = |ψ⟩⟨ψ| from a ket |ψ⟩."""
+    ket = np.asarray(state, dtype=complex).reshape(-1)
+    norm = np.linalg.norm(ket)
+    if norm == 0:
+        raise ValueError("state has zero norm")
+    ket = ket / norm
+    return np.outer(ket, np.conj(ket))
+
+
+def purity(rho: np.ndarray) -> float:
+    """Purity γ = Tr(ρ²) of a density operator ρ."""
+    mat = np.asarray(rho, dtype=complex)
+    if mat.ndim == 1:
+        mat = density(mat)
+    elif mat.ndim != 2 or mat.shape[0] != mat.shape[1]:
+        raise ValueError("rho must be a square matrix or a ket")
+    val = np.trace(mat @ mat)
+    return float(val.real)
+
+
 def bell(kind: str = "phi+") -> np.ndarray:
     """One of the four Bell states."""
     phi_plus = (np.kron(ZERO, ZERO) + np.kron(ONE, ONE)) / np.sqrt(2)

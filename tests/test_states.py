@@ -2,7 +2,7 @@ import numpy as np
 
 import pytest
 
-from eigenlab.states import PLUS, PLUS_I, ZERO, bell, bloch, probabilities
+from eigenlab.states import PLUS, PLUS_I, ZERO, ONE, basis, bell, bloch, density, probabilities, purity
 
 
 def test_phi_plus_is_correlated():
@@ -35,3 +35,26 @@ def test_bloch_one_qubit_states():
 def test_bloch_rejects_multiqubit():
     with pytest.raises(ValueError, match="one-qubit"):
         bloch(np.kron(ZERO, ZERO))
+
+
+def test_density_and_purity():
+    # Phase 2: Every current ket has purity 1
+    current_kets = [ZERO, ONE, PLUS, PLUS_I, bell("phi+"), bell("phi-"), bell("psi+"), bell("psi-"), basis(2, 3)]
+    for ket in current_kets:
+        rho = density(ket)
+        # Tr(ρ) == 1 and Tr(ρ²) == 1 for pure states
+        assert np.isclose(np.trace(rho), 1.0)
+        assert np.isclose(purity(rho), 1.0)
+        assert np.isclose(purity(ket), 1.0)
+
+    # The equal mixture of |0⟩ and |1⟩ has purity 1/2:
+    # ρ_mix = 1/2 |0⟩⟨0| + 1/2 |1⟩⟨1| = diag(1/2, 1/2)
+    # Tr(ρ_mix²) = (1/2)² + (1/2)² = 1/4 + 1/4 = 1/2
+    rho_mix = 0.5 * density(ZERO) + 0.5 * density(ONE)
+    assert np.isclose(purity(rho_mix), 0.5)
+
+    # density of an unnormalized ket matches the normalized one:
+    # For ket scaled by a non-zero complex factor c = (3.0 + 4.0j)
+    unnormalized = (3.0 + 4.0j) * PLUS
+    assert np.allclose(density(unnormalized), density(PLUS))
+    assert np.isclose(purity(unnormalized), 1.0)
