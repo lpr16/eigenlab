@@ -85,12 +85,22 @@ def term_expectation(
 
 def heisenberg_dimer_terms() -> Hamiltonian:
     """Term list for H = XX + YY + ZZ."""
-    return Hamiltonian([(1.0, "XX"), (1.0, "YY"), (1.0, "ZZ")])
+    return xxz_dimer_terms(delta=1.0)
 
 
 def heisenberg_dimer() -> np.ndarray:
     """H = X⊗X + Y⊗Y + Z⊗Z. Singlet at −3, triplet at +1."""
     return heisenberg_dimer_terms().to_matrix()
+
+
+def xxz_dimer_terms(delta: float = 1.0) -> Hamiltonian:
+    """Term list for XXZ dimer: H = XX + YY + Δ ZZ."""
+    return Hamiltonian([(1.0, "XX"), (1.0, "YY"), (float(delta), "ZZ")])
+
+
+def xxz_dimer(delta: float = 1.0) -> np.ndarray:
+    """H = XX + YY + Δ ZZ."""
+    return xxz_dimer_terms(delta=delta).to_matrix()
 
 
 def transverse_ising_terms(

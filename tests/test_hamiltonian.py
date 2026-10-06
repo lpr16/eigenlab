@@ -10,6 +10,8 @@ from eigenlab.hamiltonian import (
     to_matrix,
     transverse_ising,
     transverse_ising_terms,
+    xxz_dimer,
+    xxz_dimer_terms,
 )
 from eigenlab.pauli import expectation
 from eigenlab.states import basis, bell
@@ -96,3 +98,37 @@ def test_eigenvectors():
     # 4. spectrum stays the eigenvalues alone
     assert np.allclose(spectrum(h), energies)
     assert np.allclose(spectrum(heisenberg_dimer_terms()), energies)
+
+
+def test_xxz_dimer():
+    # Phase 8: H = XX + YY + Δ ZZ
+    # Algebra:
+    # (XX + YY)|00⟩ = 0, Δ ZZ|00⟩ = Δ |00⟩ => E(|00⟩) = Δ
+    # (XX + YY)|11⟩ = 0, Δ ZZ|11⟩ = Δ |11⟩ => E(|11⟩) = Δ
+    # (XX + YY)|ψ+⟩ = 2|ψ+⟩, Δ ZZ|ψ+⟩ = -Δ |ψ+⟩ => E(|ψ+⟩) = 2 - Δ
+    # (XX + YY)|ψ-⟩ = -2|ψ-⟩, Δ ZZ|ψ-⟩ = -Δ |ψ-⟩ => E(|ψ-⟩) = -2 - Δ
+    state_00 = basis(0, 2)
+    state_11 = basis(3, 2)
+    psi_plus = bell("psi+")
+    singlet = bell("psi-")
+
+    for delta in [0.0, 0.5, 1.0, 2.5, -1.0]:
+        h = xxz_dimer(delta)
+        # Check action on all 4 states
+        assert np.isclose(expectation(h, state_00), delta)
+        assert np.isclose(expectation(h, state_11), delta)
+        assert np.isclose(expectation(h, psi_plus), 2.0 - delta)
+        assert np.isclose(expectation(h, singlet), -2.0 - delta)
+
+        # Eigenvalues must match the set {Δ, Δ, 2 - Δ, -2 - Δ}
+        expected_energies = np.sort([delta, delta, 2.0 - delta, -2.0 - delta])
+        assert np.allclose(spectrum(h), expected_energies)
+        assert np.allclose(spectrum(xxz_dimer_terms(delta)), expected_energies)
+
+    # Specific checks from specification:
+    # Δ = 1 matches Phase 7 (energies: -3, 1, 1, 1)
+    assert np.allclose(spectrum(xxz_dimer(1.0)), [-3.0, 1.0, 1.0, 1.0])
+    assert np.allclose(xxz_dimer(1.0), heisenberg_dimer())
+
+    # Δ = 0 has energies −2, 0, 0, 2
+    assert np.allclose(spectrum(xxz_dimer(0.0)), [-2.0, 0.0, 0.0, 2.0])
