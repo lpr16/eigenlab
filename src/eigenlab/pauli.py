@@ -65,9 +65,19 @@ def pauli(label: str) -> np.ndarray:
     return operator
 
 
-def expectation(operator: np.ndarray, state: np.ndarray) -> float:
+def expectation(operator: np.ndarray | Any, state: np.ndarray) -> float:
     """⟨ψ|A|ψ⟩. Imaginary part must be numerical noise."""
+    if hasattr(operator, "expectation"):
+        return operator.expectation(state)
+    elif isinstance(operator, (list, tuple)) and operator and isinstance(operator[0], tuple):
+        from eigenlab.hamiltonian import term_expectation
+
+        return term_expectation(operator, state)
     ket = np.asarray(state, dtype=complex).reshape(-1)
+    norm = np.linalg.norm(ket)
+    if norm == 0:
+        raise ValueError("state has zero norm")
+    ket = ket / norm
     op = np.asarray(operator, dtype=complex)
     if op.shape != (ket.size, ket.size):
         raise ValueError("operator dimension does not match the state")
