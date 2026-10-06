@@ -91,3 +91,40 @@ def test_one_spin_closed_form():
         psi_pi = evolve(h_spin, psi0, np.pi / omega)
         assert np.isclose(expectation(X, psi_pi), -1.0, atol=1e-12)
         assert np.isclose(expectation(Y, psi_pi), 0.0, atol=1e-12)
+
+
+def test_first_order_trotter_step():
+    # Phase 12:
+    # For a term list, one step is ∏ exp(-i c_k P_k Δt) using P² = I => cos(θ) I - i sin(θ) P
+    from eigenlab.dynamics import trotter_step, trotter_unitary
+    from eigenlab.hamiltonian import Hamiltonian
+
+    # 1. One term matches evolve
+    h_single = Hamiltonian([(1.3, "X")])
+    psi_1q = (basis(0, 1) + 2.0j * basis(1, 1)) / np.sqrt(5)
+    for dt in [0.05, 0.2, 0.8, 1.5]:
+        psi_trot = trotter_step(h_single, psi_1q, dt)
+        psi_ev = evolve(h_single, psi_1q, dt)
+        assert np.allclose(psi_trot, psi_ev)
+        # Unitary matrix also matches
+        u_trot = trotter_unitary(h_single, dt)
+        assert np.allclose(u_trot @ psi_1q, psi_ev)
+
+    # 2. Two commuting terms: ZI and IZ match evolve at any Δt
+    # Proof: [ZI, IZ] = 0, so exp(-i(a ZI + b IZ)Δt) = exp(-i a ZI Δt) exp(-i b IZ Δt) exactly
+    h_comm1 = Hamiltonian([(1.2, "ZI"), (-0.7, "IZ")])
+    psi_2q = (basis(0, 2) + basis(1, 2) - 1j * basis(3, 2)) / np.sqrt(3)
+    for dt in [0.01, 0.1, 0.5, 1.0, 3.14, 10.0]:
+        psi_trot = trotter_step(h_comm1, psi_2q, dt)
+        psi_ev = evolve(h_comm1, psi_2q, dt)
+        assert np.allclose(psi_trot, psi_ev)
+        assert np.allclose(trotter_unitary(h_comm1, dt) @ psi_2q, psi_ev)
+
+    # 3. Two commuting terms: ZZ and II match evolve at any Δt
+    # Proof: [ZZ, II] = 0
+    h_comm2 = Hamiltonian([(0.9, "ZZ"), (1.5, "II")])
+    for dt in [0.01, 0.2, 1.0, 4.0]:
+        psi_trot = trotter_step(h_comm2, psi_2q, dt)
+        psi_ev = evolve(h_comm2, psi_2q, dt)
+        assert np.allclose(psi_trot, psi_ev)
+        assert np.allclose(trotter_unitary(h_comm2, dt) @ psi_2q, psi_ev)
