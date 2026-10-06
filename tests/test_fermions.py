@@ -127,3 +127,86 @@ def test_open_tight_binding_chain():
         ]
         assert len(n1_energies) == n
         assert np.allclose(np.sort(n1_energies), expected_sp)
+
+
+def test_hubbard_dimer():
+    # Phase 16:
+    # Two sites, spin up and spin down, hopping t, on-site U.
+    # 4 spin-orbitals: 0↑ (0), 0↓ (1), 1↑ (2), 1↓ (3).
+    from eigenlab.fermions import hubbard_dimer, total_spin_z
+    from eigenlab.hamiltonian import eigensystem, spectrum
+    from eigenlab.pauli import expectation
+
+    n_tot = total_number_operator(4)
+    sz_tot = total_spin_z(2)
+
+    # 1. At t = 0, energies are 0 and U with degeneracies counted by occupation
+    # In the half-filled N = 2 sector (6 states):
+    # - 4 states with 1 electron per site (no double occupancy): energy 0
+    # - 2 states with double occupancy on site 0 or site 1: energy U
+    u_val = 3.5
+    h_t0 = hubbard_dimer(t=0.0, U=u_val)
+    _, v_t0 = eigensystem(h_t0, commuting=[n_tot, sz_tot])
+
+    n2_energies_t0 = [
+        expectation(h_t0, v_t0[:, col])
+        for col in range(16)
+        if np.isclose(round(expectation(n_tot, v_t0[:, col])), 2)
+    ]
+    assert len(n2_energies_t0) == 6
+    # Count degeneracies
+    zeros_count = sum(np.isclose(e, 0.0) for e in n2_energies_t0)
+    u_count = sum(np.isclose(e, u_val) for e in n2_energies_t0)
+    assert zeros_count == 4
+    assert u_count == 2
+
+    # 2. Reduction by hand to the N = 2, S_z = 0 singlet subspace (3x3):
+    # Basis:
+    # |S_0⟩ = (|↑, ↓⟩ - |↓, ↑⟩) / √2      (covalent singlet)
+    # |D_+⟩ = (|↑↓, 0⟩ + |0, ↑↓⟩) / √2   (symmetric ionic)
+    # |D_-⟩ = (|↑↓, 0⟩ - |0, ↑↓⟩) / √2   (antisymmetric ionic)
+    # Matrix in this basis:
+    # H_3x3 = [[  0, -2t,   0],
+    #          [-2t,   U,   0],
+    #          [  0,   0,   U]]
+    # Eigenvalues of H_3x3 are U and (U ± √(U² + 16 t²))/2.
+    # Lowest root: (U - √(U² + 16 t²)) / 2.
+    for t in [0.5, 1.0, 2.5]:
+        for u in [0.0, 1.0, 4.0]:
+            h_dimer = hubbard_dimer(t=t, U=u)
+            _, v = eigensystem(h_dimer, commuting=[n_tot, sz_tot])
+
+            # Filter half-filled (N=2), S_z=0 states:
+            half_filled_singlet_energies = [
+                expectation(h_dimer, v[:, col])
+                for col in range(16)
+                if np.isclose(round(expectation(n_tot, v[:, col])), 2)
+                and np.isclose(expectation(sz_tot, v[:, col]), 0.0, atol=1e-8)
+            ]
+            # There are 4 states in N=2, Sz=0: the triplet T_0 at 0, and the 3 singlet states
+            assert len(half_filled_singlet_energies) == 4
+
+            # Explicit 3x3 matrix from hand calculation
+            h_3x3 = np.array(
+                [
+                    [0.0, -2.0 * t, 0.0],
+                    [-2.0 * t, u, 0.0],
+                    [0.0, 0.0, u],
+                ]
+            )
+            evals_3x3 = np.sort(np.linalg.eigvalsh(h_3x3))
+            lowest_root_algebra = (u - np.sqrt(u**2 + 16.0 * t**2)) / 2.0
+            assert np.isclose(evals_3x3[0], lowest_root_algebra)
+
+            # Match lowest eigenvalue in the half-filled subspace
+            lowest_in_subspace = min(half_filled_singlet_energies)
+            assert np.isclose(lowest_in_subspace, lowest_root_algebra)
+
+    # 3. Check U = 0 (energy -2|t|) and t = 0 (energy 0)
+    for t_test in [0.8, 1.5]:
+        root_u0 = (0.0 - np.sqrt(0.0**2 + 16.0 * t_test**2)) / 2.0
+        assert np.isclose(root_u0, -2.0 * abs(t_test))
+
+    for u_test in [1.2, 5.0]:
+        root_t0 = (u_test - np.sqrt(u_test**2 + 0.0)) / 2.0
+        assert np.isclose(root_t0, 0.0)

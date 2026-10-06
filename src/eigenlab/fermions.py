@@ -75,3 +75,45 @@ def tight_binding_chain(n: int, t: float = 1.0) -> Hamiltonian:
         label_yy[i + 1] = "Y"
         terms.append((-0.5 * float(t), "".join(label_yy)))
     return Hamiltonian(terms)
+
+
+def total_spin_z(n_spatial: int) -> Hamiltonian:
+    """Total spin projection S_z = (1/2) ∑_i (n_{i↑} - n_{i↓}).
+
+    Spin-orbitals are interleaved as: orbital 2*i is spin-up, 2*i + 1 is spin-down.
+    """
+    n_orbitals = 2 * n_spatial
+    terms: list[tuple[complex | float, str]] = []
+    # n_p = (I - Z_p)/2
+    # S_z = (1/2) ∑ ( (I - Z_{2i})/2 - (I - Z_{2i+1})/2 ) = (1/4) ∑ (-Z_{2i} + Z_{2i+1})
+    for i in range(n_spatial):
+        lbl_up = ["I"] * n_orbitals
+        lbl_up[2 * i] = "Z"
+        terms.append((-0.25, "".join(lbl_up)))
+
+        lbl_dn = ["I"] * n_orbitals
+        lbl_dn[2 * i + 1] = "Z"
+        terms.append((0.25, "".join(lbl_dn)))
+    return Hamiltonian(terms)
+
+
+def hubbard_dimer(t: float = 1.0, U: float = 0.0) -> Hamiltonian:
+    """Hubbard dimer on two sites (4 spin-orbitals: 0↑, 0↓, 1↑, 1↓).
+
+    H = -t ∑_σ (c†_{0σ} c_{1σ} + h.c.) + U (n_{0↑} n_{0↓} + n_{1↑} n_{1↓})
+    """
+    h_hop_up = (
+        jordan_wigner_adag(0, 4) @ jordan_wigner_a(2, 4)
+        + jordan_wigner_adag(2, 4) @ jordan_wigner_a(0, 4)
+    )
+    h_hop_dn = (
+        jordan_wigner_adag(1, 4) @ jordan_wigner_a(3, 4)
+        + jordan_wigner_adag(3, 4) @ jordan_wigner_a(1, 4)
+    )
+    h_hop = h_hop_up + h_hop_dn
+
+    h_u = (number_operator(0, 4) @ number_operator(1, 4)) + (
+        number_operator(2, 4) @ number_operator(3, 4)
+    )
+    h = (-float(t) * h_hop) + (float(U) * h_u)
+    return h.simplify()
