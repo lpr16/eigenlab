@@ -1,7 +1,13 @@
 import numpy as np
 
-from eigenlab.fermions import jordan_wigner_adag
-from eigenlab.molecular import integral_hamiltonian, spatial_to_spin_orbital
+from eigenlab.fermions import jordan_wigner_adag, tag_sectors
+from eigenlab.hamiltonian import eigensystem, spectrum
+from eigenlab.molecular import (
+    h2_sto3g_hamiltonian,
+    h2_sto3g_integrals,
+    integral_hamiltonian,
+    spatial_to_spin_orbital,
+)
 from eigenlab.pauli import expectation
 from eigenlab.states import basis
 
@@ -67,3 +73,60 @@ def test_integral_hamiltonian_two_orbital_toy():
     expected3 = h1_3[1, 1] + h1_3[2, 2] + h2_3[1, 1, 2, 2] - h2_3[1, 2, 2, 1]
     assert np.isclose(exp3, expected3)
     assert np.isclose(exp3, 2.0 + 3.5 + 1.2 - 0.4)
+
+
+def test_h2_sto3g_equilibrium_geometry():
+    r"""Phase 19: STO-3G H2 ground state at equilibrium geometry.
+
+    Literature citations:
+    - Whitfield, Biamonte, Aspuru-Guzik, "Simulation of electronic structure
+      Hamiltonians using quantum computers", Mol. Phys. 109, 735-750 (2011),
+      arXiv:1001.3855, Table 7.
+    - Seeley, Richard, Love, "The Bravyi-Kitaev transformation for quantum
+      computation of electronic structure", J. Chem. Phys. 137, 224109 (2012),
+      Table III.
+    - O'Malley et al., "Scalable Quantum Simulation of Molecular Energies",
+      Phys. Rev. X 6, 031007 (2016), Table I.
+    - Szabo & Ostlund, Modern Quantum Chemistry: Introduction to Advanced
+      Electronic Structure Theory (1996), Section 3.5 & Appendix D.
+
+    Parameters:
+    - Geometry: R = 1.401000 a.u. (internuclear separation approx. 0.7414 Å).
+    - Basis set: STO-3G minimal basis (two 1s orbitals forming sigma_g and sigma_u).
+    - Nuclear repulsion: V_nuc = 1/R = 1/1.401 = 0.71377587... Hartree is included.
+
+    Cited FCI Ground State Energies:
+    - Whitfield et al. (2011), Table 7 prints: E_FCI = -1.1373 Hartree.
+    - O'Malley et al. (2016), Table I prints: E_FCI = -1.137 Hartree.
+    - Szabo & Ostlund (1996), Section 3.5 prints: E_FCI = -1.13728 Hartree (at R = 1.4 a.u.).
+    These cited references agree on the ground-state energy to their reported precision.
+    """
+    R_au = 1.401
+    H = h2_sto3g_hamiltonian(R_au)
+
+    # 4 spin orbitals -> 4 qubits
+    assert H.qubits == 4
+
+    # Diagonalize using the existing eigensolver
+    evals, evecs = eigensystem(H)
+    e_ground = evals[0]
+
+    # Verify against cited full configuration interaction (FCI) energies:
+    # 1. Whitfield et al. (2011) reports -1.1373 to 4 decimal places
+    assert round(float(e_ground), 4) == -1.1373
+    assert np.isclose(e_ground, -1.1373, atol=1e-4)
+
+    # 2. O'Malley et al. (2016) reports -1.137 to 3 decimal places
+    assert round(float(e_ground), 3) == -1.137
+    assert np.isclose(e_ground, -1.137, atol=1e-3)
+
+    # 3. High-precision comparison with transcribed numerical integrals
+    # Computed value is -1.1372698...
+    assert np.isclose(e_ground, -1.13727, atol=1e-5)
+
+    # Verify sector tagging: neutral singlet ground state (N = 2, S_z = 0)
+    tags = tag_sectors(evecs, n_spatial=2)
+    n_elec, s_z = tags[0]
+    assert n_elec == 2
+    assert np.isclose(s_z, 0.0)
+

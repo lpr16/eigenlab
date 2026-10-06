@@ -110,3 +110,59 @@ def spatial_to_spin_orbital(
                         h2_spin[p, q, r, s] = h2_spatial[mu, nu, lam, kap]
 
     return h1_spin, h2_spin
+
+
+def h2_sto3g_integrals(
+    bond_length_au: float = 1.401,
+) -> tuple[np.ndarray, np.ndarray, float]:
+    r"""Return STO-3G molecular integrals for H2 at specified bond length in bohr (a.u.).
+
+    Parameters
+    ----------
+    bond_length_au : float
+        Internuclear distance R in atomic units (bohr). Defaults to 1.401 a.u.
+        (approx. 0.7414 Å), the equilibrium bond length transcribed from:
+        - Whitfield et al., Mol. Phys. 109, 735-750 (2011), arXiv:1001.3855, Table 7
+        - Seeley et al., J. Chem. Phys. 137, 224109 (2012), Table III
+        - Szabo & Ostlund, Modern Quantum Chemistry (1996), Section 3.5 & Appendix D
+
+    Returns
+    -------
+    h1 : np.ndarray
+        Shape (2, 2) one-electron spatial orbital integrals in atomic units (Hartree).
+    h2 : np.ndarray
+        Shape (2, 2, 2, 2) two-electron spatial orbital integrals in chemist notation (pq|rs).
+    nuclear_repulsion : float
+        Nuclear repulsion energy V_nuc = 1/R in Hartree.
+    """
+    if np.isclose(bond_length_au, 1.401, atol=1e-3):
+        # Equilibrium geometry: R = 1.401 a.u. (0.7414 Å)
+        # Nuclear repulsion V_nuc = 1/R = 1/1.401 = 0.71377587... Hartree
+        v_nuc = 1.0 / 1.401
+        h1 = np.zeros((2, 2), dtype=float)
+        h1[0, 0] = -1.252477
+        h1[1, 1] = -0.475934
+
+        h2 = np.zeros((2, 2, 2, 2), dtype=float)
+        h2[0, 0, 0, 0] = 0.674493
+        h2[1, 1, 1, 1] = 0.697397
+        h2[0, 0, 1, 1] = 0.663472
+        h2[1, 1, 0, 0] = 0.663472
+        for p, q, r, s in [(0, 1, 1, 0), (1, 0, 0, 1), (0, 1, 0, 1), (1, 0, 1, 0)]:
+            h2[p, q, r, s] = 0.181287
+        return h1, h2, v_nuc
+    else:
+        raise ValueError(f"Unsupported bond length: {bond_length_au} a.u.")
+
+
+def h2_sto3g_hamiltonian(
+    bond_length_au: float = 1.401,
+) -> Hamiltonian:
+    """Build the second-quantized Pauli Hamiltonian for H2 in STO-3G basis.
+
+    Returns the simplified 4-qubit Hamiltonian including nuclear repulsion.
+    """
+    h1, h2, v_nuc = h2_sto3g_integrals(bond_length_au)
+    h1_spin, h2_spin = spatial_to_spin_orbital(h1, h2)
+    return integral_hamiltonian(h1_spin, h2_spin, nuclear_repulsion=v_nuc)
+
