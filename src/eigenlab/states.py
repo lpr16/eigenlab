@@ -103,6 +103,71 @@ def partial_trace(
     return res.reshape((1 << k, 1 << k))
 
 
+def schmidt_spectrum(state: np.ndarray) -> np.ndarray:
+    """Schmidt spectrum (singular values) across the middle bipartition."""
+    ket = np.asarray(state, dtype=complex).reshape(-1)
+    dim = ket.size
+    qubits = int(np.round(np.log2(dim)))
+    if (1 << qubits) != dim or qubits < 2:
+        raise ValueError("state must be at least two qubits with dimension 2^n")
+    norm = np.linalg.norm(ket)
+    if norm == 0:
+        raise ValueError("state has zero norm")
+    ket = ket / norm
+    cut = qubits // 2
+    dim_a = 1 << cut
+    dim_b = 1 << (qubits - cut)
+    mat = ket.reshape((dim_a, dim_b))
+    return np.linalg.svd(mat, compute_uv=False)
+
+
+def entanglement_entropy(state: np.ndarray) -> float:
+    """Von Neumann entanglement entropy in bits across the middle cut."""
+    s = schmidt_spectrum(state)
+    probs = s**2
+    probs = probs[probs > 1e-15]
+    ent = float(-np.sum(probs * np.log2(probs)))
+    if abs(ent) < 1e-14:
+        return 0.0
+    return ent
+
+
+def concurrence(state: np.ndarray) -> float:
+    """Concurrence of a two-qubit state, lying in [0, 1]."""
+    arr = np.asarray(state, dtype=complex)
+    if arr.ndim == 1 or (arr.ndim == 2 and (arr.shape[0] == 1 or arr.shape[1] == 1)):
+        ket = arr.reshape(-1)
+        if ket.size != 4:
+            raise ValueError("state must be a two-qubit state (size 4)")
+        norm = np.linalg.norm(ket)
+        if norm == 0:
+            raise ValueError("state has zero norm")
+        ket = ket / norm
+        val = 2.0 * abs(ket[0] * ket[3] - ket[1] * ket[2])
+        if val < 1e-14:
+            return 0.0
+        return float(np.clip(val, 0.0, 1.0))
+    elif arr.ndim == 2 and arr.shape == (4, 4):
+        tr = np.trace(arr)
+        if abs(tr) == 0:
+            raise ValueError("density matrix has zero trace")
+        rho = arr / tr
+        yy = np.array(
+            [[0, 0, 0, -1], [0, 0, 1, 0], [0, 1, 0, 0], [-1, 0, 0, 0]],
+            dtype=complex,
+        )
+        rho_tilde = yy @ np.conj(rho) @ yy
+        r = rho @ rho_tilde
+        evals = np.sort(np.real(np.linalg.eigvals(r)))[::-1]
+        lambdas = np.sqrt(np.maximum(0.0, evals))
+        c = lambdas[0] - float(np.sum(lambdas[1:]))
+        if c < 1e-14:
+            return 0.0
+        return float(np.clip(c, 0.0, 1.0))
+    else:
+        raise ValueError("state must be a two-qubit ket (size 4) or density matrix (4x4)")
+
+
 def bell(kind: str = "phi+") -> np.ndarray:
     """One of the four Bell states."""
     phi_plus = (np.kron(ZERO, ZERO) + np.kron(ONE, ONE)) / np.sqrt(2)

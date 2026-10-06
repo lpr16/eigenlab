@@ -10,10 +10,13 @@ from eigenlab.states import (
     basis,
     bell,
     bloch,
+    concurrence,
     density,
+    entanglement_entropy,
     partial_trace,
     probabilities,
     purity,
+    schmidt_spectrum,
 )
 
 
@@ -95,3 +98,46 @@ def test_partial_trace():
     tr_both = partial_trace(phi_plus, 2, keep=[])
     assert tr_both == 1
     assert np.isclose(tr_both, 1.0)
+
+
+def test_two_qubit_entanglement():
+    # Phase 4:
+    # All four Bell states have concurrence 1 and entropy 1 (in bits).
+    bell_names = ["phi+", "phi-", "psi+", "psi-"]
+    for name in bell_names:
+        state = bell(name)
+        # Schmidt spectrum across the middle cut: [1/√2, 1/√2]
+        s = schmidt_spectrum(state)
+        assert np.allclose(s, [1.0 / np.sqrt(2), 1.0 / np.sqrt(2)])
+        # Entanglement entropy: - (0.5 log2(0.5) + 0.5 log2(0.5)) = 1 bit
+        assert np.isclose(entanglement_entropy(state), 1.0)
+        # Concurrence: 1
+        assert np.isclose(concurrence(state), 1.0)
+        # Also test density matrix concurrence
+        assert np.isclose(concurrence(density(state)), 1.0)
+
+    # |00⟩, |+⟩⊗|0⟩, and a phased product state have concurrence 0 and entropy 0.
+    state_00 = np.kron(ZERO, ZERO)
+    assert np.isclose(concurrence(state_00), 0.0)
+    assert np.isclose(entanglement_entropy(state_00), 0.0)
+
+    state_plus_zero = np.kron(PLUS, ZERO)
+    assert np.isclose(concurrence(state_plus_zero), 0.0)
+    assert np.isclose(entanglement_entropy(state_plus_zero), 0.0)
+
+    # Phased product state: (cos(θ)|0⟩ + e^(iφ) sin(θ)|1⟩) ⊗ (cos(α)|0⟩ + e^(iβ) sin(α)|1⟩)
+    theta, phi_angle = 0.3, 0.9
+    alpha, beta_angle = 1.1, -0.4
+    q0 = np.array([np.cos(theta), np.exp(1j * phi_angle) * np.sin(theta)], dtype=complex)
+    q1 = np.array([np.cos(alpha), np.exp(1j * beta_angle) * np.sin(alpha)], dtype=complex)
+    phased_product = np.kron(q0, q1)
+    assert np.isclose(concurrence(phased_product), 0.0)
+    assert np.isclose(entanglement_entropy(phased_product), 0.0)
+
+    # Concurrence stays in [0, 1] for arbitrary superposition:
+    # |ψ⟩ = cos(t)|00⟩ + sin(t)|11⟩ with concurrence = 2|cos(t)sin(t)| = |sin(2t)| ∈ [0, 1]
+    for t in np.linspace(0, np.pi, 20):
+        superposed = np.array([np.cos(t), 0, 0, np.sin(t)], dtype=complex)
+        c = concurrence(superposed)
+        assert 0.0 <= c <= 1.0
+        assert np.isclose(c, np.abs(np.sin(2 * t)))
