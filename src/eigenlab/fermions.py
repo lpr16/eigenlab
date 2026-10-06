@@ -56,3 +56,22 @@ def total_number_operator(n: int) -> Hamiltonian:
         label_z = "I" * p + "Z" + "I" * (n - 1 - p)
         terms.append((-0.5, label_z))
     return Hamiltonian(terms)
+
+
+def tight_binding_chain(n: int, t: float = 1.0) -> Hamiltonian:
+    """Open tight-binding chain on n spinless fermions: H = -t ∑_i (a†_i a_{i+1} + h.c.)."""
+    if n < 2:
+        raise ValueError("tight binding chain requires at least 2 sites")
+    terms: list[tuple[complex | float, str]] = []
+    for i in range(n - 1):
+        # a†_i a_{i+1} + a†_{i+1} a_i = (X_i X_{i+1} + Y_i Y_{i+1}) / 2
+        label_xx = ["I"] * n
+        label_xx[i] = "X"
+        label_xx[i + 1] = "X"
+        terms.append((-0.5 * float(t), "".join(label_xx)))
+
+        label_yy = ["I"] * n
+        label_yy[i] = "Y"
+        label_yy[i + 1] = "Y"
+        terms.append((-0.5 * float(t), "".join(label_yy)))
+    return Hamiltonian(terms)

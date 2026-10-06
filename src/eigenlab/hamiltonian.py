@@ -157,14 +157,47 @@ def transverse_ising(
     return transverse_ising_terms(qubits, coupling=coupling, field=field).to_matrix()
 
 
-def eigensystem(hamiltonian: np.ndarray | Hamiltonian) -> tuple[np.ndarray, np.ndarray]:
+def eigensystem(
+    hamiltonian: np.ndarray | Hamiltonian,
+    commuting: Sequence[np.ndarray | Hamiltonian] | np.ndarray | Hamiltonian | None = None,
+) -> tuple[np.ndarray, np.ndarray]:
     """Ascending energies and orthonormal eigenvectors (as columns) of a Hermitian operator."""
+    if commuting is not None:
+        return simultaneous_eigensystem(hamiltonian, commuting)
     if isinstance(hamiltonian, Hamiltonian):
         mat = hamiltonian.to_matrix()
     else:
         mat = np.asarray(hamiltonian, dtype=complex)
     values, vectors = np.linalg.eigh(mat)
     return np.real(values), vectors
+
+
+def simultaneous_eigensystem(
+    hamiltonian: np.ndarray | Hamiltonian,
+    commuting: Sequence[np.ndarray | Hamiltonian] | np.ndarray | Hamiltonian,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Simultaneously diagonalize a Hamiltonian and one or more commuting symmetries."""
+    h_mat = (
+        hamiltonian.to_matrix()
+        if isinstance(hamiltonian, Hamiltonian)
+        else np.asarray(hamiltonian, dtype=complex)
+    )
+    if isinstance(commuting, (Hamiltonian, np.ndarray)):
+        comm_list = [commuting]
+    else:
+        comm_list = list(commuting)
+
+    h_pert = h_mat.copy()
+    primes = [np.sqrt(2.0), np.sqrt(3.0), np.sqrt(5.0), np.sqrt(7.0), np.sqrt(11.0)]
+    for idx, c in enumerate(comm_list):
+        c_mat = c.to_matrix() if isinstance(c, Hamiltonian) else np.asarray(c, dtype=complex)
+        alpha = 1e-6 * primes[idx % len(primes)]
+        h_pert += alpha * c_mat
+
+    _, v = np.linalg.eigh(h_pert)
+    energies = np.real(np.diag(v.conj().T @ h_mat @ v))
+    order = np.argsort(energies)
+    return energies[order], v[:, order]
 
 
 diagonalize = eigensystem
