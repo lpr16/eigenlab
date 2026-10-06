@@ -45,6 +45,34 @@ class Hamiltonian:
     def __rmul__(self, scalar: complex | float) -> Hamiltonian:
         return Hamiltonian([(c * complex(scalar), l) for c, l in self.terms])
 
+    def __matmul__(self, other: Hamiltonian) -> Hamiltonian:
+        from collections import defaultdict
+        from eigenlab.pauli import pauli_mult
+
+        if not self.terms or not other.terms:
+            return Hamiltonian([])
+        combined: dict[str, complex] = defaultdict(complex)
+        for c1, l1 in self.terms:
+            for c2, l2 in other.terms:
+                phase, label = pauli_mult(l1, l2)
+                combined[label] += c1 * c2 * phase
+        filtered = [(val, l) for l, val in combined.items() if abs(val) > 1e-12]
+        return Hamiltonian(filtered if filtered else [(0.0, self.terms[0][1])])
+
+    def dagger(self) -> Hamiltonian:
+        return Hamiltonian([(complex(c).conjugate(), l) for c, l in self.terms])
+
+    def simplify(self, tol: float = 1e-12) -> Hamiltonian:
+        from collections import defaultdict
+
+        combined: dict[str, complex] = defaultdict(complex)
+        for c, l in self.terms:
+            combined[l] += complex(c)
+        filtered = [(val, l) for l, val in combined.items() if abs(val) > tol]
+        if not filtered and self.terms:
+            return Hamiltonian([(0.0, self.terms[0][1])])
+        return Hamiltonian(filtered)
+
 
 def to_matrix(hamiltonian: Hamiltonian | Sequence[tuple[complex | float, str]]) -> np.ndarray:
     """Build the matrix representation of a Hamiltonian for n <= 8 qubits."""
