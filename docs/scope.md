@@ -9,17 +9,16 @@ In scope:
 - Two-qubit entanglement: Schmidt spectrum, entanglement entropy, concurrence.
 - Spin Hamiltonians with closed-form spectra: Heisenberg dimer, XXZ dimer, transverse-field Ising.
 - Exact unitary evolution, Trotter product formula, Strang splitting, and symplectic Trotter error scaling.
-- Fermionic operators and Jordan–Wigner transformation, open tight-binding chains, Hubbard dimer, particle and spin sector tagging.
-- Second-quantized molecular Hamiltonians from 1- and 2-electron integrals in chemist notation, and the STO-3G H₂ potential energy curve checked against published full-CI literature.
+- Fermionic operators, Jordan–Wigner and Bravyi–Kitaev transformations, open tight-binding chains, Hubbard dimer, particle and spin sector tagging.
+- The open transverse-field Ising chain spectrum from its free-fermion Bogoliubov matrix.
+- Total spin `S²`, one-particle density matrix, and natural occupations.
+- Hellmann–Feynman derivatives for the XXZ dimer, transverse-field Ising, and Hubbard dimer.
+- Second-quantized molecular Hamiltonians from 1- and 2-electron integrals in chemist notation: STO-3G H₂ potential energy curve and STO-3G HeH⁺, checked against published full-CI literature.
 
-Next, specified in `docs/next-haul.md`:
+Not done:
 
-- Bravyi–Kitaev, checked against the Jordan–Wigner spectra already computed.
-- The open transverse-field Ising spectrum from its free-fermion Bogoliubov matrix.
-- Total spin `S²`, the one-particle density matrix, and natural occupations.
-- Hellmann–Feynman derivatives for the XXZ dimer, the transverse-field Ising, and the Hubbard dimer.
-- One second molecule, HeH⁺ in STO-3G, from a named reference, on the same eigensolver.
-
-Not in that haul: a force along the tabulated H₂ curve, a third molecule, and any system above eight qubits.
+- A derivative of the H₂ curve.
+- Any molecule beyond H₂ and HeH⁺.
+- Exact diagonalization above eight qubits.
 
 Out of scope: finance, variational-algorithm leaderboards, claims about hardware advantage.

@@ -10,12 +10,12 @@ Current hardware is irrelevant here. Two to eight qubits, exact linear algebra, 
 | --- | --- | --- |
 | States | What does a ket predict? | Bloch vectors, Bell pairs, purity, partial trace, concurrence |
 | Operators | How do Paulis compose? | `X`, `Y`, `Z`, Kronecker products, expectations, algebra without matrices |
-| Spectra | What are the energies? | Heisenberg dimer, XXZ dimer, transverse-field Ising, eigensystem |
-| Dynamics | How does a state evolve? | Exact spectral unitary, first-order Trotter, Strang splitting, error scaling |
-| Fermions | How do electrons hop? | Jordan–Wigner transformation, tight-binding chain, Hubbard dimer, sector tagging |
-| Molecules | What is the chemical ground state? | Integral Hamiltonian in chemist notation, STO-3G H₂ potential energy curve |
+| Spectra | What are the energies? | Heisenberg dimer, XXZ dimer, transverse-field Ising, free-fermion Bogoliubov spectrum, eigensystem |
+| Dynamics | How does a state evolve? | Exact spectral unitary, first-order Trotter, Strang splitting, error scaling, Hellmann–Feynman derivatives |
+| Fermions | How do electrons hop? | Jordan–Wigner and Bravyi–Kitaev transformations, tight-binding chain, Hubbard dimer, sector tagging, total spin `S²`, natural occupations |
+| Molecules | What is the chemical ground state? | Integral Hamiltonian in chemist notation, STO-3G H₂ potential energy curve, STO-3G HeH⁺ |
 
-The first haul stopped at Jordan–Wigner. The next one is specified in `docs/next-haul.md`: Bravyi–Kitaev, the free-fermion transverse Ising spectrum, spin and natural occupations, three Hellmann–Feynman checks, and STO-3G HeH⁺. No heavy SDKs; NumPy and standard linear algebra are enough to be right in public.
+Bravyi–Kitaev, the free-fermion transverse Ising Bogoliubov spectrum, total spin `S²`, natural occupations, the three Hellmann–Feynman checks, and STO-3G HeH⁺ are implemented and tested. Left as not done: a derivative of the H₂ curve, any molecule beyond H₂ and HeH⁺, and exact diagonalization above eight qubits. No heavy SDKs; NumPy and standard linear algebra are enough to be right in public.
 
 ## Run
 
