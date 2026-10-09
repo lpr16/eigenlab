@@ -163,3 +163,5 @@ Then update `docs/scope.md` and the README table so Jordan–Wigner, the Trotter
 ## Done
 
 After phase 20 the lab should still be what `docs/scope.md` already asks for: a state, a Hamiltonian, and a spectrum you can recompute by hand, now including one molecule whose number came from a book rather than from a fit.
+
+That haul is in the tree. The continuation is `docs/next-haul.md`.

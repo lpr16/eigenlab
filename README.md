@@ -15,7 +15,7 @@ Current hardware is irrelevant here. Two to eight qubits, exact linear algebra, 
 | Fermions | How do electrons hop? | Jordan–Wigner transformation, tight-binding chain, Hubbard dimer, sector tagging |
 | Molecules | What is the chemical ground state? | Integral Hamiltonian in chemist notation, STO-3G H₂ potential energy curve |
 
-Bravyi–Kitaev mapping was intentionally omitted from this haul (Jordan–Wigner is used throughout). No heavy SDKs; NumPy and standard linear algebra are enough to be right in public.
+The first haul stopped at Jordan–Wigner. The next one is specified in `docs/next-haul.md`: Bravyi–Kitaev, the free-fermion transverse Ising spectrum, spin and natural occupations, three Hellmann–Feynman checks, and STO-3G HeH⁺. No heavy SDKs; NumPy and standard linear algebra are enough to be right in public.
 
 ## Run
 
