@@ -1,10 +1,16 @@
 import numpy as np
 
-from eigenlab.fermions import jordan_wigner_adag, tag_sectors
+from eigenlab.fermions import (
+    jordan_wigner_adag,
+    tag_sectors,
+    total_spin_squared,
+)
 from eigenlab.hamiltonian import eigensystem, spectrum
 from eigenlab.molecular import (
     h2_sto3g_hamiltonian,
     h2_sto3g_integrals,
+    heh_sto3g_hamiltonian,
+    heh_sto3g_integrals,
     integral_hamiltonian,
     spatial_to_spin_orbital,
 )
@@ -207,6 +213,84 @@ def test_h2_sto3g_bravyi_kitaev():
     # Check via h2_sto3g_hamiltonian mapping argument
     H_bk_direct = h2_sto3g_hamiltonian(R_au, mapping="bravyi_kitaev")
     assert np.isclose(spectrum(H_bk_direct)[0], e_jw, atol=1e-8)
+
+
+def test_heh_sto3g():
+    r"""Phase 7: STO-3G HeH+ ground state, sector tagging, and BK mapping.
+
+    Literature citations:
+    - Szabo & Ostlund, Modern Quantum Chemistry: Introduction to Advanced
+      Electronic Structure Theory (1996), Section 3.5.3 (pp. 170-179) and Table 3.5.
+    - Comparison: Wang et al., "Quantum Simulation of Helium Hydride in a
+      Solid-State Spin Register", ACS Nano 9, 7769 (2015) / arXiv:1405.2696.
+
+    Parameters:
+    - Geometry: R = 1.4632 a.u. (bohr), internuclear distance approx. 0.7743 Å.
+      (Wang et al. investigated R = 91.3 pm approx. 1.7253 bohr; we follow the
+      classic Szabo & Ostlund Section 3.5.3 geometry at R = 1.4632 bohr).
+    - Basis set: STO-3G minimal basis (He 1s and H 1s).
+    - Nuclear repulsion: V_nuc = Z_He * Z_H / R = 2.0 / 1.4632 = 1.36686714... Hartree.
+
+    Reported Energies:
+    - Szabo & Ostlund Table 3.5 RHF energy:
+        E_RHF_elec = -4.227529 Hartree
+        E_RHF_total = -2.860662 Hartree (includes nuclear repulsion V_nuc).
+    - Full Configuration Interaction (FCI) 2-electron ground state energy:
+        E_FCI_elec = -4.247579 Hartree
+        E_FCI_total = -2.880712 Hartree (includes nuclear repulsion V_nuc).
+
+    Fock Space Spectrum Note:
+    In the unconstrained second-quantized 4-qubit Fock space, the neutral radical
+    HeH sector (N = 3) sits lower at -2.922682 Hartree because the HeH+ cation
+    has positive electron affinity (virtual orbital energy eps_2 = -0.0617 < 0
+    in STO-3G). The physical HeH+ cation ground state is the lowest eigenstate
+    in the N = 2 sector, which is a spin singlet with N = 2, S_z = 0, and <S^2> = 0.
+    """
+    import pytest
+
+    # 1. Integrals and nuclear repulsion
+    R_au = 1.4632
+    h1, h2, v_nuc = heh_sto3g_integrals(R_au)
+    assert np.isclose(v_nuc, 2.0 / R_au)
+    assert h1.shape == (2, 2)
+    assert h2.shape == (2, 2, 2, 2)
+
+    # Unsupported geometries raise ValueError (do not add a second bond length)
+    with pytest.raises(ValueError):
+        heh_sto3g_integrals(1.0)
+
+    # 2. Build Hamiltonians with Jordan-Wigner and Bravyi-Kitaev mappings
+    H_jw = heh_sto3g_hamiltonian(R_au, mapping="jordan_wigner")
+    H_bk = heh_sto3g_hamiltonian(R_au, mapping="bravyi_kitaev")
+
+    assert H_jw.qubits == 4
+    assert H_bk.qubits == 4
+
+    # 3. Both mappings have identical spectra to 1e-8
+    spec_jw = spectrum(H_jw)
+    spec_bk = spectrum(H_bk)
+    assert np.isclose(spec_jw[0], spec_bk[0], atol=1e-8)
+    assert np.allclose(spec_jw, spec_bk, atol=1e-8)
+
+    # 4. Diagonalize and identify the 2-electron HeH+ cation ground state
+    evals, evecs = eigensystem(H_jw)
+    tags = tag_sectors(evecs, n_spatial=2)
+
+    n2_indices = [i for i, (n, sz) in enumerate(tags) if n == 2]
+    i_n2 = n2_indices[0]
+    e_fci_n2 = evals[i_n2]
+
+    # Energy matches FCI reference (-2.88071 Hartree) to reported precision
+    assert np.isclose(e_fci_n2, -2.880712, atol=1e-5)
+
+    # Sector: N = 2, S_z = 0
+    assert tags[i_n2] == (2, 0.0)
+
+    # Total spin singlet: <S^2> = 0
+    psi_n2 = evecs[:, i_n2]
+    s2_op = total_spin_squared(n_spatial=2)
+    assert np.isclose(s2_op.expectation(psi_n2), 0.0, atol=1e-6)
+
 
 
 

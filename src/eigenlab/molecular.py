@@ -225,3 +225,88 @@ def h2_sto3g_hamiltonian(
     return integral_hamiltonian(h1_spin, h2_spin, nuclear_repulsion=v_nuc, mapping=mapping)
 
 
+def heh_sto3g_integrals(
+    bond_length_au: float = 1.4632,
+) -> tuple[np.ndarray, np.ndarray, float]:
+    r"""Return STO-3G molecular integrals for HeH+ at R = 1.4632 bohr (a.u.).
+
+    Reference: Szabo & Ostlund, Modern Quantum Chemistry: Introduction to Advanced
+    Electronic Structure Theory (1996), Section 3.5.3 (pp. 170-179) and Table 3.5.
+
+    Geometry:
+        - Internuclear distance: R = 1.4632 a.u. (bohr)
+        - Nuclear charges: Z_He = 2, Z_H = 1
+        - Nuclear repulsion energy: V_nuc = 2 / R = 1.3668671405... Hartree
+
+    Integrals:
+        Transcribed atomic orbital integrals (zeta_He = 2.0925, zeta_H = 1.24):
+            h_11 = -2.652744, h_12 = h_21 = -1.347205, h_22 = -1.731828
+            S_12 = 0.450770
+            (11|11) = 1.307152, (21|11) = 0.437279, (21|21) = 0.177267
+            (22|11) = 0.605703, (22|21) = 0.311795, (22|22) = 0.774608
+        Canonical RHF molecular orbital expansion coefficients (Szabo Table 3.5):
+            C = [[ 0.80191665, -0.78226573],
+                 [ 0.33680182,  1.06844491]]
+        yielding orthonormal spatial molecular orbital integrals in chemist notation.
+
+    Returns
+    -------
+    h1 : np.ndarray
+        Shape (2, 2) one-electron spatial orbital integrals in MO basis (Hartree).
+    h2 : np.ndarray
+        Shape (2, 2, 2, 2) two-electron spatial orbital integrals in chemist notation (pq|rs).
+    nuclear_repulsion : float
+        Nuclear repulsion energy V_nuc = 2/R in Hartree.
+    """
+    if not np.isclose(bond_length_au, 1.4632, atol=1e-3):
+        raise ValueError(
+            f"Unsupported bond length: {bond_length_au} a.u. Supported: 1.4632"
+        )
+
+    v_nuc = 2.0 / float(bond_length_au)
+
+    h1 = np.array([
+        [-2.63007671,  0.24154815],
+        [ 0.24154815, -1.34832103],
+    ], dtype=float)
+
+    h2 = np.zeros((2, 2, 2, 2), dtype=float)
+    # Chemist notation (pq|rs) with 8-fold real symmetry
+    g_0000 = 1.03262451
+    g_1111 = 0.75595698
+    g_0011 = 0.74896193
+    g_0110 = 0.21127047
+    g_0001 = -0.24154822
+    g_1110 = -0.01882696
+
+    def set_sym8(p: int, q: int, r: int, s: int, val: float) -> None:
+        for idx in [
+            (p, q, r, s), (q, p, r, s), (p, q, s, r), (q, p, s, r),
+            (r, s, p, q), (s, r, p, q), (r, s, q, p), (s, r, q, p),
+        ]:
+            h2[idx] = val
+
+    set_sym8(0, 0, 0, 0, g_0000)
+    set_sym8(1, 1, 1, 1, g_1111)
+    set_sym8(0, 0, 1, 1, g_0011)
+    set_sym8(0, 1, 1, 0, g_0110)
+    set_sym8(0, 0, 0, 1, g_0001)
+    set_sym8(1, 1, 1, 0, g_1110)
+
+    return h1, h2, v_nuc
+
+
+def heh_sto3g_hamiltonian(
+    bond_length_au: float = 1.4632,
+    mapping: str = "jordan_wigner",
+) -> Hamiltonian:
+    """Build the second-quantized Pauli Hamiltonian for HeH+ in STO-3G basis.
+
+    Returns the simplified 4-qubit Hamiltonian including nuclear repulsion.
+    """
+    h1, h2, v_nuc = heh_sto3g_integrals(bond_length_au)
+    h1_spin, h2_spin = spatial_to_spin_orbital(h1, h2)
+    return integral_hamiltonian(h1_spin, h2_spin, nuclear_repulsion=v_nuc, mapping=mapping)
+
+
+
