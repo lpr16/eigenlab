@@ -170,3 +170,54 @@ def test_transverse_ising_hand_limits():
     # Here h=20, coupling=1 => ⟨∑ X⟩ > 2.998, ⟨∑ Z⟩ < 1e-12
     assert 2.998 < exp_x_h20 <= 3.0
     assert np.isclose(exp_z_h20, 0.0, atol=1e-12)
+
+
+def test_bogoliubov_spectrum_transverse_ising():
+    # Phase 3: Bogoliubov spectrum of the open transverse Ising chain
+    import itertools
+
+    # One-site sanity check, written next to the assertion:
+    # H = −h Z has energies −h and +h, and the formula with A = [2h], B = 0, ε = 2h reproduces them.
+    h_1site = 1.75
+    A_1 = np.array([[2.0 * h_1site]], dtype=float)
+    B_1 = np.array([[0.0]], dtype=float)
+    bdg_1 = np.block([[A_1, B_1], [-B_1, -A_1]])
+    evals_1 = np.sort(np.real(np.linalg.eigvals(bdg_1)))
+    eps_1 = evals_1[1:]  # ε = 2h
+    assert np.isclose(eps_1[0], 2.0 * h_1site)
+    energies_1site = np.sort([(nu - 0.5) * eps_1[0] for nu in [0, 1]])
+    assert np.allclose(energies_1site, [-h_1site, +h_1site])
+
+    # Multi-site checks: The test builds this Bogoliubov matrix itself.
+    # It does not call spectrum on the spin operator and rename the result.
+    parameter_pairs = [(1.0, 0.0), (1.0, 0.5), (1.0, 1.0), (0.7, 1.3)]
+    for n in [2, 3, 4, 5]:
+        for J, h in parameter_pairs:
+            A = np.zeros((n, n), dtype=float)
+            B = np.zeros((n, n), dtype=float)
+            for i in range(n):
+                A[i, i] = 2.0 * h
+            for i in range(n - 1):
+                A[i, i + 1] = -J
+                A[i + 1, i] = -J
+                B[i, i + 1] = -J
+                B[i + 1, i] = +J
+
+            # 2n × 2n Bogoliubov–de Gennes matrix [[ A, B ], [ −B*, −A* ]]
+            bdg = np.block([[A, B], [-B, -A]])
+
+            evals = np.sort(np.real(np.linalg.eigvals(bdg)))
+            # Take the n algebraically largest (nonnegative quasiparticle energies ε_k)
+            eps = evals[n:]
+
+            # Every many-body energy is E(ν) = ∑_k (ν_k − 1/2) ε_k
+            many_body_energies = [
+                sum((nu_k - 0.5) * eps[k] for k, nu_k in enumerate(nu))
+                for nu in itertools.product([0, 1], repeat=n)
+            ]
+            e_bogoliubov = np.sort(many_body_energies)
+
+            # Compare against the full spin spectrum, matching to 1e-8 with degeneracies included
+            e_spin = spectrum(transverse_ising(n, coupling=J, field=h))
+            assert np.allclose(e_bogoliubov, e_spin, atol=1e-8)
+

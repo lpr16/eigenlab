@@ -157,6 +157,42 @@ def transverse_ising(
     return transverse_ising_terms(qubits, coupling=coupling, field=field).to_matrix()
 
 
+def transverse_ising_bdg_matrix(
+    qubits: int, coupling: float = 1.0, field: float = 1.0
+) -> np.ndarray:
+    """Bogoliubov–de Gennes 2n x 2n matrix for the open-chain transverse-field Ising model."""
+    if qubits < 1:
+        raise ValueError("qubits must be at least 1")
+    n = qubits
+    A = np.zeros((n, n), dtype=float)
+    B = np.zeros((n, n), dtype=float)
+    for i in range(n):
+        A[i, i] = 2.0 * float(field)
+    for i in range(n - 1):
+        A[i, i + 1] = -float(coupling)
+        A[i + 1, i] = -float(coupling)
+        B[i, i + 1] = -float(coupling)
+        B[i + 1, i] = float(coupling)
+    return np.block([[A, B], [-B, -A]])
+
+
+def transverse_ising_bogoliubov_spectrum(
+    qubits: int, coupling: float = 1.0, field: float = 1.0
+) -> np.ndarray:
+    """Exact spectrum of open transverse Ising chain computed via Bogoliubov free-fermion solution."""
+    import itertools
+
+    n = qubits
+    bdg = transverse_ising_bdg_matrix(n, coupling=coupling, field=field)
+    evals = np.sort(np.real(np.linalg.eigvals(bdg)))
+    eps = evals[n:]
+    energies = [
+        sum((nu_k - 0.5) * eps[k] for k, nu_k in enumerate(nu))
+        for nu in itertools.product([0, 1], repeat=n)
+    ]
+    return np.sort(np.array(energies, dtype=float))
+
+
 def eigensystem(
     hamiltonian: np.ndarray | Hamiltonian,
     commuting: Sequence[np.ndarray | Hamiltonian] | np.ndarray | Hamiltonian | None = None,
