@@ -473,4 +473,88 @@ def test_total_spin_squared_fermions():
     assert np.isclose(s2_4q.expectation(gs_h2), 0.0, atol=1e-8)
 
 
+def test_one_particle_rdm_and_natural_occupations():
+    # Phase 5: One-particle density matrix and natural occupations
+    from eigenlab.fermions import (
+        hubbard_dimer,
+        jordan_wigner_adag,
+        natural_occupations,
+        one_particle_rdm,
+        total_number_operator,
+    )
+    from eigenlab.hamiltonian import eigensystem
+    from eigenlab.molecular import h2_sto3g_hamiltonian
+    from eigenlab.states import basis
+
+    # 1. Check properties for 2-particle computational states:
+    # - γ is Hermitian
+    # - Tr(γ) = ⟨N⟩
+    # - Every natural occupation lies in [0, 1]
+    # - Computational state a†_i a†_j |0⟩ has natural occupations 1, 1, 0, ...
+    for n in [3, 4]:
+        vac = basis(0, n)
+        n_op = total_number_operator(n)
+        for i in range(n):
+            for j in range(i + 1, n):
+                state = (
+                    jordan_wigner_adag(i, n).to_matrix()
+                    @ jordan_wigner_adag(j, n).to_matrix()
+                ) @ vac
+                gamma = one_particle_rdm(state, n)
+
+                # γ is Hermitian
+                assert np.allclose(gamma, gamma.conj().T)
+
+                # Tr(γ) = ⟨N⟩
+                exp_n = n_op.expectation(state)
+                assert np.isclose(np.trace(gamma).real, exp_n)
+
+                # Natural occupations
+                occ = natural_occupations(gamma)
+                # Check natural_occupations(state, n) as well
+                occ_direct = natural_occupations(state, n)
+                assert np.allclose(occ, occ_direct)
+
+                # Every occupation in [0, 1]
+                assert np.all(occ >= -1e-12)
+                assert np.all(occ <= 1.0 + 1e-12)
+
+                # Occupations are 1, 1, 0, ...
+                expected = np.zeros(n)
+                expected[0] = 1.0
+                expected[1] = 1.0
+                assert np.allclose(occ, expected, atol=1e-10)
+
+    # 2. Hubbard dimer at U = 0, t = 1, full-space ground state has occupations 1, 1, 0, 0
+    h_hub = hubbard_dimer(t=1.0, U=0.0)
+    _, evecs_hub = eigensystem(h_hub)
+    gs_hub = evecs_hub[:, 0]
+    occ_hub = natural_occupations(gs_hub, 4)
+    assert np.allclose(occ_hub, [1.0, 1.0, 0.0, 0.0], atol=1e-10)
+
+    # 3. Jordan–Wigner H₂ ground state:
+    # - Occupations come in two equal pairs and sum to 2
+    # - At R = 1.401 a.u., largest occupation is above 0.95
+    # - At R = 3.0 a.u., strictly smaller, and still above 1/2
+    h_eq = h2_sto3g_hamiltonian(1.401)
+    _, evecs_eq = eigensystem(h_eq)
+    occ_eq = natural_occupations(evecs_eq[:, 0], 4)
+
+    assert np.isclose(np.sum(occ_eq), 2.0, atol=1e-8)
+    assert np.isclose(occ_eq[0], occ_eq[1], atol=1e-8)
+    assert np.isclose(occ_eq[2], occ_eq[3], atol=1e-8)
+    assert occ_eq[0] > 0.95
+
+    h_str = h2_sto3g_hamiltonian(3.0)
+    _, evecs_str = eigensystem(h_str)
+    occ_str = natural_occupations(evecs_str[:, 0], 4)
+
+    assert np.isclose(np.sum(occ_str), 2.0, atol=1e-8)
+    assert np.isclose(occ_str[0], occ_str[1], atol=1e-8)
+    assert np.isclose(occ_str[2], occ_str[3], atol=1e-8)
+    assert occ_str[0] < occ_eq[0]
+    assert occ_str[0] > 0.5
+
+
+
 

@@ -287,3 +287,58 @@ def tag_sectors(
 
 tag_sector = tag_sectors
 sector = tag_sectors
+
+
+def one_particle_rdm(state: np.ndarray, n: int) -> np.ndarray:
+    """One-particle reduced density matrix γ_{pq} = ⟨a†_p a_q⟩ for n orbitals in Jordan-Wigner basis."""
+    arr = np.asarray(state, dtype=complex)
+    dim = 1 << n
+    a_mats = [jordan_wigner_a(p, n).to_matrix() for p in range(n)]
+    adag_mats = [jordan_wigner_adag(p, n).to_matrix() for p in range(n)]
+
+    gamma = np.zeros((n, n), dtype=complex)
+    if arr.ndim == 1 or (arr.ndim == 2 and (arr.shape[0] == 1 or arr.shape[1] == 1)):
+        ket = arr.reshape(-1)
+        norm = np.linalg.norm(ket)
+        if norm == 0:
+            raise ValueError("state has zero norm")
+        ket = ket / norm
+        if ket.size != dim:
+            raise ValueError(f"state size {ket.size} does not match 2^{n} = {dim}")
+        for p in range(n):
+            for q in range(n):
+                op = adag_mats[p] @ a_mats[q]
+                gamma[p, q] = np.vdot(ket, op @ ket)
+    elif arr.ndim == 2 and arr.shape == (dim, dim):
+        tr = np.trace(arr)
+        if abs(tr) == 0:
+            raise ValueError("density matrix has zero trace")
+        rho = arr / tr
+        for p in range(n):
+            for q in range(n):
+                op = adag_mats[p] @ a_mats[q]
+                gamma[p, q] = np.trace(rho @ op)
+    else:
+        raise ValueError(f"state must be a ket (size {dim}) or density matrix ({dim}x{dim}) for {n} fermions")
+
+    return gamma
+
+
+def natural_occupations(
+    state_or_rdm: np.ndarray, n: int | None = None
+) -> np.ndarray:
+    """Natural orbital occupation numbers (eigenvalues of one-particle RDM sorted descending)."""
+    arr = np.asarray(state_or_rdm, dtype=complex)
+    if n is not None and (arr.ndim == 1 or (arr.ndim == 2 and arr.shape[0] == (1 << n))):
+        rdm = one_particle_rdm(arr, n)
+    elif arr.ndim == 2 and arr.shape[0] == arr.shape[1]:
+        if n is not None and arr.shape[0] != n:
+            rdm = one_particle_rdm(arr, n)
+        else:
+            rdm = arr
+    elif n is not None:
+        rdm = one_particle_rdm(arr, n)
+    else:
+        raise ValueError("Must provide n or a square one-particle RDM matrix")
+    evals = np.linalg.eigvalsh(rdm)
+    return np.sort(np.real(evals))[::-1]
