@@ -114,13 +114,19 @@ bravyi_kitaev_annihilate = bravyi_kitaev_a
 bravyi_kitaev_create = bravyi_kitaev_adag
 
 
-def number_operator(p: int, n: int) -> Hamiltonian:
-    """Number operator n_p = a†_p a_p = (I - Z_p) / 2."""
+def number_operator(p: int, n: int, mapping: str = "jordan_wigner") -> Hamiltonian:
+    """Number operator n_p = a†_p a_p."""
     if not 0 <= p < n:
         raise ValueError(f"orbital {p} out of range for {n} fermions")
-    label_i = "I" * n
-    label_z = "I" * p + "Z" + "I" * (n - 1 - p)
-    return Hamiltonian([(0.5, label_i), (-0.5, label_z)])
+    map_norm = mapping.lower()
+    if map_norm in ("jordan_wigner", "jw"):
+        label_i = "I" * n
+        label_z = "I" * p + "Z" + "I" * (n - 1 - p)
+        return Hamiltonian([(0.5, label_i), (-0.5, label_z)])
+    elif map_norm in ("bravyi_kitaev", "bk"):
+        return (bravyi_kitaev_adag(p, n) @ bravyi_kitaev_a(p, n)).simplify()
+    else:
+        raise ValueError(f"Unknown mapping: {mapping}. Must be 'jordan_wigner' or 'bravyi_kitaev'")
 
 
 def total_number_operator(n: int) -> Hamiltonian:
@@ -132,23 +138,38 @@ def total_number_operator(n: int) -> Hamiltonian:
     return Hamiltonian(terms)
 
 
-def tight_binding_chain(n: int, t: float = 1.0) -> Hamiltonian:
+def tight_binding_chain(
+    n: int, t: float = 1.0, mapping: str = "jordan_wigner"
+) -> Hamiltonian:
     """Open tight-binding chain on n spinless fermions: H = -t ∑_i (a†_i a_{i+1} + h.c.)."""
     if n < 2:
         raise ValueError("tight binding chain requires at least 2 sites")
-    terms: list[tuple[complex | float, str]] = []
-    for i in range(n - 1):
-        # a†_i a_{i+1} + a†_{i+1} a_i = (X_i X_{i+1} + Y_i Y_{i+1}) / 2
-        label_xx = ["I"] * n
-        label_xx[i] = "X"
-        label_xx[i + 1] = "X"
-        terms.append((-0.5 * float(t), "".join(label_xx)))
+    map_norm = mapping.lower()
+    if map_norm in ("jordan_wigner", "jw"):
+        terms: list[tuple[complex | float, str]] = []
+        for i in range(n - 1):
+            # a†_i a_{i+1} + a†_{i+1} a_i = (X_i X_{i+1} + Y_i Y_{i+1}) / 2
+            label_xx = ["I"] * n
+            label_xx[i] = "X"
+            label_xx[i + 1] = "X"
+            terms.append((-0.5 * float(t), "".join(label_xx)))
 
-        label_yy = ["I"] * n
-        label_yy[i] = "Y"
-        label_yy[i + 1] = "Y"
-        terms.append((-0.5 * float(t), "".join(label_yy)))
-    return Hamiltonian(terms)
+            label_yy = ["I"] * n
+            label_yy[i] = "Y"
+            label_yy[i + 1] = "Y"
+            terms.append((-0.5 * float(t), "".join(label_yy)))
+        return Hamiltonian(terms)
+    elif map_norm in ("bravyi_kitaev", "bk"):
+        H = Hamiltonian([])
+        for i in range(n - 1):
+            hop = (
+                bravyi_kitaev_adag(i, n) @ bravyi_kitaev_a(i + 1, n)
+                + bravyi_kitaev_adag(i + 1, n) @ bravyi_kitaev_a(i, n)
+            )
+            H = H + (-float(t) * hop)
+        return H.simplify()
+    else:
+        raise ValueError(f"Unknown mapping: {mapping}. Must be 'jordan_wigner' or 'bravyi_kitaev'")
 
 
 def total_spin_z(n_spatial: int) -> Hamiltonian:
@@ -171,24 +192,39 @@ def total_spin_z(n_spatial: int) -> Hamiltonian:
     return Hamiltonian(terms)
 
 
-def hubbard_dimer(t: float = 1.0, U: float = 0.0) -> Hamiltonian:
+def hubbard_dimer(
+    t: float = 1.0, U: float = 0.0, mapping: str = "jordan_wigner"
+) -> Hamiltonian:
     """Hubbard dimer on two sites (4 spin-orbitals: 0↑, 0↓, 1↑, 1↓).
 
     H = -t ∑_σ (c†_{0σ} c_{1σ} + h.c.) + U (n_{0↑} n_{0↓} + n_{1↑} n_{1↓})
     """
+    map_norm = mapping.lower()
+    if map_norm in ("jordan_wigner", "jw"):
+        a_fn = jordan_wigner_a
+        adag_fn = jordan_wigner_adag
+    elif map_norm in ("bravyi_kitaev", "bk"):
+        a_fn = bravyi_kitaev_a
+        adag_fn = bravyi_kitaev_adag
+    else:
+        raise ValueError(f"Unknown mapping: {mapping}. Must be 'jordan_wigner' or 'bravyi_kitaev'")
+
     h_hop_up = (
-        jordan_wigner_adag(0, 4) @ jordan_wigner_a(2, 4)
-        + jordan_wigner_adag(2, 4) @ jordan_wigner_a(0, 4)
+        adag_fn(0, 4) @ a_fn(2, 4)
+        + adag_fn(2, 4) @ a_fn(0, 4)
     )
     h_hop_dn = (
-        jordan_wigner_adag(1, 4) @ jordan_wigner_a(3, 4)
-        + jordan_wigner_adag(3, 4) @ jordan_wigner_a(1, 4)
+        adag_fn(1, 4) @ a_fn(3, 4)
+        + adag_fn(3, 4) @ a_fn(1, 4)
     )
     h_hop = h_hop_up + h_hop_dn
 
-    h_u = (number_operator(0, 4) @ number_operator(1, 4)) + (
-        number_operator(2, 4) @ number_operator(3, 4)
-    )
+    n0 = number_operator(0, 4, mapping=mapping)
+    n1 = number_operator(1, 4, mapping=mapping)
+    n2 = number_operator(2, 4, mapping=mapping)
+    n3 = number_operator(3, 4, mapping=mapping)
+    h_u = (n0 @ n1) + (n2 @ n3)
+
     h = (-float(t) * h_hop) + (float(U) * h_u)
     return h.simplify()
 

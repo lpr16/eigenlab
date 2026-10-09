@@ -189,3 +189,24 @@ def test_h2_sto3g_potential_curve_geometries():
         assert np.isclose(tags[0][1], 0.0)
 
 
+def test_h2_sto3g_bravyi_kitaev():
+    # Phase 2: H2 STO-3G at R = 1.401 a.u. with Bravyi-Kitaev mapping
+    R_au = 1.401
+    h1, h2, v_nuc = h2_sto3g_integrals(R_au)
+    h1_spin, h2_spin = spatial_to_spin_orbital(h1, h2)
+
+    H_jw = integral_hamiltonian(h1_spin, h2_spin, nuclear_repulsion=v_nuc, mapping="jordan_wigner")
+    H_bk = integral_hamiltonian(h1_spin, h2_spin, nuclear_repulsion=v_nuc, mapping="bravyi_kitaev")
+
+    e_jw = spectrum(H_jw)[0]
+    e_bk = spectrum(H_bk)[0]
+
+    assert np.isclose(e_jw, e_bk, atol=1e-8)
+    assert np.isclose(e_bk, -1.13727, atol=1e-4)
+
+    # Check via h2_sto3g_hamiltonian mapping argument
+    H_bk_direct = h2_sto3g_hamiltonian(R_au, mapping="bravyi_kitaev")
+    assert np.isclose(spectrum(H_bk_direct)[0], e_jw, atol=1e-8)
+
+
+

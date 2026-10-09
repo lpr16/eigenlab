@@ -4,7 +4,12 @@ from __future__ import annotations
 
 import numpy as np
 
-from eigenlab.fermions import jordan_wigner_a, jordan_wigner_adag
+from eigenlab.fermions import (
+    bravyi_kitaev_a,
+    bravyi_kitaev_adag,
+    jordan_wigner_a,
+    jordan_wigner_adag,
+)
 from eigenlab.hamiltonian import Hamiltonian
 
 
@@ -12,6 +17,7 @@ def integral_hamiltonian(
     one_electron: np.ndarray,
     two_electron: np.ndarray,
     nuclear_repulsion: float = 0.0,
+    mapping: str = "jordan_wigner",
 ) -> Hamiltonian:
     r"""Build a Pauli term list from 1- and 2-electron integrals in chemist notation.
 
@@ -28,6 +34,7 @@ def integral_hamiltonian(
         - two_electron is an (n, n, n, n) array of two-electron integrals (pq|rs)
         - nuclear_repulsion is the scalar nuclear repulsion energy E_nuc
         - n is the number of spin-orbitals (and qubits)
+        - mapping is 'jordan_wigner' or 'bravyi_kitaev'
     """
     h1 = np.asarray(one_electron, dtype=complex)
     h2 = np.asarray(two_electron, dtype=complex)
@@ -43,9 +50,16 @@ def integral_hamiltonian(
 
     H = Hamiltonian(terms)
 
-    # Precompute Jordan-Wigner operators
-    a_ops = [jordan_wigner_a(p, n) for p in range(n)]
-    adag_ops = [jordan_wigner_adag(p, n) for p in range(n)]
+    # Precompute fermionic operators according to selected mapping
+    map_norm = mapping.lower()
+    if map_norm in ("jordan_wigner", "jw"):
+        a_ops = [jordan_wigner_a(p, n) for p in range(n)]
+        adag_ops = [jordan_wigner_adag(p, n) for p in range(n)]
+    elif map_norm in ("bravyi_kitaev", "bk"):
+        a_ops = [bravyi_kitaev_a(p, n) for p in range(n)]
+        adag_ops = [bravyi_kitaev_adag(p, n) for p in range(n)]
+    else:
+        raise ValueError(f"Unknown mapping: {mapping}. Must be 'jordan_wigner' or 'bravyi_kitaev'")
 
     # One-electron terms: ∑_{p,q} h_{pq} a†_p a_q
     for p in range(n):
@@ -200,6 +214,7 @@ def h2_sto3g_integrals(
 
 def h2_sto3g_hamiltonian(
     bond_length_au: float = 1.401,
+    mapping: str = "jordan_wigner",
 ) -> Hamiltonian:
     """Build the second-quantized Pauli Hamiltonian for H2 in STO-3G basis.
 
@@ -207,6 +222,6 @@ def h2_sto3g_hamiltonian(
     """
     h1, h2, v_nuc = h2_sto3g_integrals(bond_length_au)
     h1_spin, h2_spin = spatial_to_spin_orbital(h1, h2)
-    return integral_hamiltonian(h1_spin, h2_spin, nuclear_repulsion=v_nuc)
+    return integral_hamiltonian(h1_spin, h2_spin, nuclear_repulsion=v_nuc, mapping=mapping)
 
 

@@ -372,3 +372,47 @@ def test_bravyi_kitaev_operators():
                 break
         assert differ, f"Bravyi-Kitaev terms must differ from Jordan-Wigner for n={n}"
 
+
+def test_bravyi_kitaev_same_spectra_tight_binding_and_hubbard():
+    # Phase 2: Same spectra, different strings
+    from eigenlab.fermions import hubbard_dimer, tight_binding_chain
+    from eigenlab.hamiltonian import spectrum
+
+    # 1. Open tight-binding chain at n = 3, 4, 5
+    for n in [3, 4, 5]:
+        h_jw = tight_binding_chain(n, t=1.25, mapping="jordan_wigner")
+        h_bk = tight_binding_chain(n, t=1.25, mapping="bravyi_kitaev")
+
+        evals_jw = spectrum(h_jw)
+        evals_bk = spectrum(h_bk)
+        assert np.allclose(evals_jw, evals_bk, atol=1e-8)
+
+    # 2. Hubbard dimer at the (t, U) pairs covered by test_hubbard_dimer
+    tu_pairs = [
+        (0.0, 3.5),
+        (0.5, 0.0),
+        (0.5, 1.0),
+        (0.5, 4.0),
+        (1.0, 0.0),
+        (1.0, 1.0),
+        (1.0, 4.0),
+        (2.5, 0.0),
+        (2.5, 1.0),
+        (2.5, 4.0),
+        (0.8, 0.0),
+        (1.5, 0.0),
+        (0.0, 1.2),
+        (0.0, 5.0),
+    ]
+
+    for t, u in tu_pairs:
+        h_jw = hubbard_dimer(t=t, U=u, mapping="jordan_wigner")
+        h_bk = hubbard_dimer(t=t, U=u, mapping="bravyi_kitaev")
+
+        evals_jw = spectrum(h_jw)
+        evals_bk = spectrum(h_bk)
+
+        # Full spectra match, including degeneracies
+        assert np.allclose(evals_jw, evals_bk, atol=1e-8)
+
+
