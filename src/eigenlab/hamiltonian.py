@@ -131,6 +131,38 @@ def xxz_dimer(delta: float = 1.0) -> np.ndarray:
     return xxz_dimer_terms(delta=delta).to_matrix()
 
 
+def total_spin(qubits: int) -> Hamiltonian:
+    """Total spin squared operator S² = S_- S_+ + S_z² + S_z for qubits.
+
+    S_z^{(i)} = Z_i / 2 and S_+^{(i)} = (X_i + i Y_i) / 2.
+    """
+    if qubits < 1:
+        raise ValueError("qubits must be at least 1")
+    terms_sz: list[tuple[complex | float, str]] = []
+    terms_sp: list[tuple[complex | float, str]] = []
+    for i in range(qubits):
+        lbl_z = ["I"] * qubits
+        lbl_z[i] = "Z"
+        terms_sz.append((0.5, "".join(lbl_z)))
+
+        lbl_x = ["I"] * qubits
+        lbl_x[i] = "X"
+        terms_sp.append((0.5, "".join(lbl_x)))
+
+        lbl_y = ["I"] * qubits
+        lbl_y[i] = "Y"
+        terms_sp.append((0.5j, "".join(lbl_y)))
+
+    sz = Hamiltonian(terms_sz)
+    sp = Hamiltonian(terms_sp)
+    sm = sp.dagger()
+    s2 = (sm @ sp) + (sz @ sz) + sz
+    return s2.simplify()
+
+
+total_spin_squared = total_spin
+
+
 def transverse_ising_terms(
     qubits: int, coupling: float = 1.0, field: float = 1.0
 ) -> Hamiltonian:

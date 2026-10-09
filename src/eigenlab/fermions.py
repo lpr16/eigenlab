@@ -192,6 +192,25 @@ def total_spin_z(n_spatial: int) -> Hamiltonian:
     return Hamiltonian(terms)
 
 
+def total_spin_squared(n_spatial: int) -> Hamiltonian:
+    """Total spin operator S² = S_- S_+ + S_z² + S_z for interleaved fermions.
+
+    S_+ = ∑_i a†_{2i} a_{2i+1}, S_- = S_+†, and S_z is total_spin_z.
+    """
+    if n_spatial < 1:
+        raise ValueError("n_spatial must be at least 1")
+    n_orbitals = 2 * n_spatial
+    s_plus = Hamiltonian([])
+    for i in range(n_spatial):
+        term = jordan_wigner_adag(2 * i, n_orbitals) @ jordan_wigner_a(2 * i + 1, n_orbitals)
+        s_plus = s_plus + term
+    s_minus = s_plus.dagger()
+    s_z = total_spin_z(n_spatial)
+
+    s2 = (s_minus @ s_plus) + (s_z @ s_z) + s_z
+    return s2.simplify()
+
+
 def hubbard_dimer(
     t: float = 1.0, U: float = 0.0, mapping: str = "jordan_wigner"
 ) -> Hamiltonian:

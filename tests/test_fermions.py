@@ -416,3 +416,61 @@ def test_bravyi_kitaev_same_spectra_tight_binding_and_hubbard():
         assert np.allclose(evals_jw, evals_bk, atol=1e-8)
 
 
+def test_total_spin_squared_fermions():
+    # Phase 4: Total spin for fermions
+    from eigenlab.fermions import (
+        hubbard_dimer,
+        total_number_operator,
+        total_spin_squared,
+        total_spin_z,
+    )
+    from eigenlab.hamiltonian import eigensystem
+    from eigenlab.molecular import h2_sto3g_hamiltonian
+
+    t = 1.0
+    n_tot = total_number_operator(4)
+    sz_tot = total_spin_z(2)
+    s2 = total_spin_squared(2)
+
+    for u in [0.0, 4.0]:
+        h_hub = hubbard_dimer(t=t, U=u)
+        # Simultaneously diagonalize H, N, and S_z
+        evals, evecs = eigensystem(h_hub, commuting=[n_tot, sz_tot, s2])
+
+        # 1. Half-filled singlet: lowest state in N = 2, S_z = 0 sector
+        expected_singlet_energy = (u - np.sqrt(u**2 + 16.0 * t**2)) / 2.0
+        n2_sz0_states = []
+        for col in range(16):
+            v = evecs[:, col]
+            exp_n = n_tot.expectation(v)
+            exp_sz = sz_tot.expectation(v)
+            if np.isclose(round(exp_n), 2) and np.isclose(exp_sz, 0.0, atol=1e-8):
+                n2_sz0_states.append((evals[col], v))
+
+        n2_sz0_states.sort(key=lambda item: item[0])
+
+        lowest_energy, lowest_vec = n2_sz0_states[0]
+        assert np.isclose(lowest_energy, expected_singlet_energy, atol=1e-8)
+        assert np.isclose(s2.expectation(lowest_vec), 0.0, atol=1e-8)
+
+        # 2. The N = 2, S_z = 0 triplet has energy 0 and ⟨S²⟩ = 2
+        # Filter the triplet state (S^2 ≈ 2) among the N = 2, S_z = 0 states
+        triplet_candidates = [
+            (e, v)
+            for e, v in n2_sz0_states
+            if np.isclose(s2.expectation(v), 2.0, atol=1e-6)
+        ]
+        assert len(triplet_candidates) == 1
+        trip_energy, trip_vec = triplet_candidates[0]
+        assert np.isclose(trip_energy, 0.0, atol=1e-8)
+        assert np.isclose(s2.expectation(trip_vec), 2.0, atol=1e-8)
+
+    # 3. The H₂ ground state at R = 1.401 a.u. has ⟨S²⟩ = 0
+    h_h2 = h2_sto3g_hamiltonian(1.401)
+    _, evecs_h2 = eigensystem(h_h2)
+    gs_h2 = evecs_h2[:, 0]
+    s2_4q = total_spin_squared(2)
+    assert np.isclose(s2_4q.expectation(gs_h2), 0.0, atol=1e-8)
+
+
+

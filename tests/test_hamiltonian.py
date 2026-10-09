@@ -221,3 +221,38 @@ def test_bogoliubov_spectrum_transverse_ising():
             e_spin = spectrum(transverse_ising(n, coupling=J, field=h))
             assert np.allclose(e_bogoliubov, e_spin, atol=1e-8)
 
+
+def test_total_spin_qubits():
+    # Phase 4: Total spin for qubits
+    from eigenlab.hamiltonian import total_spin, xxz_dimer_terms
+    from eigenlab.pauli import expectation
+    from eigenlab.states import basis, bell
+
+    s2 = total_spin(2)
+
+    # Singlet (|01⟩ − |10⟩) / √2 has ⟨S²⟩ = 0
+    singlet = bell("psi-")
+    assert np.isclose(s2.expectation(singlet), 0.0, atol=1e-12)
+
+    # Each of the three triplet states has ⟨S²⟩ = 2
+    triplet_m1 = basis(3, 2)  # |11⟩, S_z = -1
+    triplet_0 = bell("psi+")  # (|01⟩ + |10⟩) / √2, S_z = 0
+    triplet_p1 = basis(0, 2)  # |00⟩, S_z = +1
+
+    for trip in [triplet_m1, triplet_0, triplet_p1]:
+        assert np.isclose(s2.expectation(trip), 2.0, atol=1e-12)
+
+    # Verification against S² = 3/2 + (XX + YY + ZZ) / 2
+    # Singlet of XX + YY + ZZ is at −3 -> S² = 1.5 + (-3)/2 = 0
+    # Triplet of XX + YY + ZZ is at +1 -> S² = 1.5 + 1/2 = 2
+    h_heis = xxz_dimer_terms(1.0)
+    exp_singlet_heis = h_heis.expectation(singlet)
+    assert np.isclose(exp_singlet_heis, -3.0)
+    assert np.isclose(1.5 + 0.5 * exp_singlet_heis, 0.0)
+
+    for trip in [triplet_m1, triplet_0, triplet_p1]:
+        exp_trip_heis = h_heis.expectation(trip)
+        assert np.isclose(exp_trip_heis, 1.0)
+        assert np.isclose(1.5 + 0.5 * exp_trip_heis, 2.0)
+
+
