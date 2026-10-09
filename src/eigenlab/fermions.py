@@ -42,6 +42,78 @@ jordan_wigner_annihilate = jordan_wigner_a
 jordan_wigner_create = jordan_wigner_adag
 
 
+_CNOT_MAP = {
+    ("I", "I"): (1.0, "I", "I"),
+    ("I", "X"): (1.0, "I", "X"),
+    ("I", "Y"): (1.0, "Z", "Y"),
+    ("I", "Z"): (1.0, "Z", "Z"),
+    ("X", "I"): (1.0, "X", "X"),
+    ("X", "X"): (1.0, "X", "I"),
+    ("X", "Y"): (1.0, "Y", "Z"),
+    ("X", "Z"): (-1.0, "Y", "Y"),
+    ("Y", "I"): (1.0, "Y", "X"),
+    ("Y", "X"): (1.0, "Y", "I"),
+    ("Y", "Y"): (-1.0, "X", "Z"),
+    ("Y", "Z"): (1.0, "X", "Y"),
+    ("Z", "I"): (1.0, "Z", "I"),
+    ("Z", "X"): (1.0, "Z", "X"),
+    ("Z", "Y"): (1.0, "I", "Y"),
+    ("Z", "Z"): (1.0, "I", "Z"),
+}
+
+
+def _fenwick_cnot_gates(n: int) -> list[tuple[int, int]]:
+    """Return sequence of (control, target) CNOT gates transforming occupation basis to Bravyi-Kitaev."""
+    gates: list[tuple[int, int]] = []
+    for q in range(n):
+        i = q + 1
+        p = i + (i & -i)
+        if p <= n:
+            gates.append((q, p - 1))
+    return gates
+
+
+def _conjugate_by_cnots(ham: Hamiltonian, gates: list[tuple[int, int]]) -> Hamiltonian:
+    terms = ham.terms
+    for c, t in gates:
+        new_terms: list[tuple[complex, str]] = []
+        for coeff, label in terms:
+            chars = list(label)
+            phase, nc, nt = _CNOT_MAP[(chars[c], chars[t])]
+            chars[c] = nc
+            chars[t] = nt
+            new_terms.append((coeff * phase, "".join(chars)))
+        terms = new_terms
+    return Hamiltonian(terms)
+
+
+def bravyi_kitaev_a(p: int, n: int) -> Hamiltonian:
+    """Annihilation operator a_p for orbital p out of n fermions via Bravyi-Kitaev."""
+    if not 0 <= p < n:
+        raise ValueError(f"orbital {p} out of range for {n} fermions")
+    jw = jordan_wigner_a(p, n)
+    return _conjugate_by_cnots(jw, _fenwick_cnot_gates(n))
+
+
+def bravyi_kitaev_adag(p: int, n: int) -> Hamiltonian:
+    """Creation operator a†_p for orbital p out of n fermions via Bravyi-Kitaev."""
+    if not 0 <= p < n:
+        raise ValueError(f"orbital {p} out of range for {n} fermions")
+    jw = jordan_wigner_adag(p, n)
+    return _conjugate_by_cnots(jw, _fenwick_cnot_gates(n))
+
+
+def bravyi_kitaev(p: int, n: int, dagger: bool = False) -> Hamiltonian:
+    """Bravyi-Kitaev operator for orbital p. Returns a†_p if dagger=True, else a_p."""
+    if dagger:
+        return bravyi_kitaev_adag(p, n)
+    return bravyi_kitaev_a(p, n)
+
+
+bravyi_kitaev_annihilate = bravyi_kitaev_a
+bravyi_kitaev_create = bravyi_kitaev_adag
+
+
 def number_operator(p: int, n: int) -> Hamiltonian:
     """Number operator n_p = a†_p a_p = (I - Z_p) / 2."""
     if not 0 <= p < n:

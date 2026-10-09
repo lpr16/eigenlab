@@ -274,3 +274,101 @@ def test_sectors():
     bad_state = np.cos(eps) * basis(1, 4) + np.sin(eps) * basis(3, 4)
     with pytest.raises(ValueError, match="integer"):
         tag_sectors(bad_state, n_spatial=2, tol=1e-8)
+
+
+def test_bravyi_kitaev_operators():
+    # Phase 1: Bravyi-Kitaev operators
+    from eigenlab.fermions import (
+        bravyi_kitaev_a,
+        bravyi_kitaev_adag,
+        jordan_wigner_a,
+        jordan_wigner_adag,
+    )
+    from eigenlab.pauli import expectation
+    from eigenlab.states import basis
+
+    def build_pi(n: int) -> np.ndarray:
+        dim = 1 << n
+        pi_mat = np.zeros((dim, dim), dtype=complex)
+        for x in range(dim):
+            bits = [(x >> (n - 1 - q)) & 1 for q in range(n)]
+            beta = [0] * n
+            for q in range(n):
+                i = q + 1
+                start = i - (i & -i)
+                beta[q] = sum(bits[start:i]) % 2
+            y = sum(beta[q] << (n - 1 - q) for q in range(n))
+            pi_mat[y, x] = 1.0
+        return pi_mat
+
+    # 1. Test oracle Π @ a^{JW} @ Π.T for n <= 4
+    for n in [1, 2, 3, 4]:
+        pi_mat = build_pi(n)
+        for p in range(n):
+            bk_mat = bravyi_kitaev_a(p, n).to_matrix()
+            jw_mat = jordan_wigner_a(p, n).to_matrix()
+            oracle = pi_mat @ jw_mat @ pi_mat.T
+            assert np.allclose(bk_mat, oracle)
+
+            bk_dag_mat = bravyi_kitaev_adag(p, n).to_matrix()
+            jw_dag_mat = jordan_wigner_adag(p, n).to_matrix()
+            oracle_dag = pi_mat @ jw_dag_mat @ pi_mat.T
+            assert np.allclose(bk_dag_mat, oracle_dag)
+
+    # 2. Anticommutation relations and dagger for n <= 5
+    for n in range(1, 6):
+        dim = 1 << n
+        ident = np.eye(dim, dtype=complex)
+        zero = np.zeros((dim, dim), dtype=complex)
+        a_mats = [bravyi_kitaev_a(p, n).to_matrix() for p in range(n)]
+        adag_mats = [bravyi_kitaev_adag(p, n).to_matrix() for p in range(n)]
+
+        # Total number operator in BK: N = ∑_p a†_p a_p
+        n_bk = np.zeros((dim, dim), dtype=complex)
+        for p in range(n):
+            n_bk += adag_mats[p] @ a_mats[p]
+
+        vac = basis(0, n)
+        for i in range(n):
+            ai = a_mats[i]
+            ai_dag = adag_mats[i]
+
+            # Dagger check: dagger of bravyi_kitaev_a is bravyi_kitaev_adag
+            assert bravyi_kitaev_a(i, n).dagger() == bravyi_kitaev_adag(i, n)
+            assert np.allclose(ai.conj().T, ai_dag)
+
+            # a_i² = 0
+            assert np.allclose(ai @ ai, zero)
+            assert np.allclose(ai_dag @ ai_dag, zero)
+
+            # a†_p applied to vacuum has ⟨N⟩ = 1
+            ket_1 = ai_dag @ vac
+            norm_sq = np.vdot(ket_1, ket_1).real
+            assert np.isclose(norm_sq, 1.0)
+            exp_n = np.vdot(ket_1, n_bk @ ket_1).real
+            assert np.isclose(exp_n, 1.0)
+
+            for j in range(n):
+                aj = a_mats[j]
+                aj_dag = adag_mats[j]
+
+                # {a_i, a†_j} = δ_ij I
+                anticom_adag = ai @ aj_dag + aj_dag @ ai
+                expected_adag = ident if i == j else zero
+                assert np.allclose(anticom_adag, expected_adag)
+
+                # {a_i, a_j} = 0
+                anticom_aa = ai @ aj + aj @ ai
+                assert np.allclose(anticom_aa, zero)
+
+    # 3. For n >= 2, Pauli strings differ from Jordan-Wigner
+    for n in [2, 3, 4, 5]:
+        differ = False
+        for p in range(n):
+            jw_terms = jordan_wigner_a(p, n).terms
+            bk_terms = bravyi_kitaev_a(p, n).terms
+            if set(jw_terms) != set(bk_terms):
+                differ = True
+                break
+        assert differ, f"Bravyi-Kitaev terms must differ from Jordan-Wigner for n={n}"
+
