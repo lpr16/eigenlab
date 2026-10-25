@@ -23,6 +23,7 @@ from eigenlab.states import (
     purity,
     schmidt_spectrum,
     shannon_entropy,
+    swap_test,
     w_state,
 )
 
@@ -267,3 +268,17 @@ def test_helstrom():
     assert np.isclose(helstrom(ZERO, ONE), 1.0, atol=1e-12)
     # |0⟩ against |+⟩: |⟨0|+⟩|² = 1/2 => (1 + √(1/2)) / 2
     assert np.isclose(helstrom(ZERO, PLUS), (1.0 + np.sqrt(0.5)) / 2.0, atol=1e-12)
+
+
+def test_swap_test():
+    # Phase 15: Swap test
+    # |0⟩ with |0⟩ gives 1
+    assert np.isclose(swap_test(ZERO, ZERO), 1.0, atol=1e-12)
+    # |0⟩ with |1⟩ gives 1/2
+    assert np.isclose(swap_test(ZERO, ONE), 0.5, atol=1e-12)
+
+    # Arbitrary pair: circuit output matches (1 + |⟨ψ|φ⟩|²) / 2
+    psi = np.array([np.cos(0.4), np.exp(0.7j) * np.sin(0.4)], dtype=complex)
+    phi = np.array([np.cos(1.1), np.exp(-0.3j) * np.sin(1.1)], dtype=complex)
+    expected = (1.0 + abs(np.vdot(psi, phi)) ** 2) / 2.0
+    assert np.isclose(swap_test(psi, phi), expected, atol=1e-12)

@@ -291,3 +291,35 @@ def helstrom(psi: np.ndarray, phi: np.ndarray) -> float:
     v2 = v2 / n2
     overlap_sq = float(abs(np.vdot(v1, v2)) ** 2)
     return float(0.5 * (1.0 + np.sqrt(max(0.0, 1.0 - overlap_sq))))
+
+
+def swap_test(psi: np.ndarray, phi: np.ndarray) -> float:
+    """Three-qubit swap test circuit returning P(ancilla = 0) = (1 + |⟨ψ|φ⟩|²) / 2."""
+    v1 = np.asarray(psi, dtype=complex).reshape(-1)
+    v2 = np.asarray(phi, dtype=complex).reshape(-1)
+    if v1.size != 2 or v2.size != 2:
+        raise ValueError("swap_test requires two one-qubit kets of size 2")
+    n1 = np.linalg.norm(v1)
+    n2 = np.linalg.norm(v2)
+    if n1 == 0 or n2 == 0:
+        raise ValueError("state has zero norm")
+    v1 = v1 / n1
+    v2 = v2 / n2
+
+    # Initial 3-qubit state |0⟩ ⊗ |ψ⟩ ⊗ |φ⟩
+    state0 = np.kron(np.kron(ZERO, v1), v2)
+
+    # H on ancilla (qubit 0)
+    h_1q = np.array([[1.0, 1.0], [1.0, -1.0]], dtype=complex) / np.sqrt(2.0)
+    h_anc = np.kron(h_1q, np.eye(4, dtype=complex))
+
+    # Fredkin gate: swaps qubits 1 and 2 when qubit 0 is 1 (swaps |101⟩ (5) and |110⟩ (6))
+    fredkin = np.eye(8, dtype=complex)
+    fredkin[5, 5] = 0.0
+    fredkin[6, 6] = 0.0
+    fredkin[5, 6] = 1.0
+    fredkin[6, 5] = 1.0
+
+    final_state = h_anc @ (fredkin @ (h_anc @ state0))
+    prob_anc_0 = float(np.sum(np.abs(final_state[:4]) ** 2))
+    return prob_anc_0
