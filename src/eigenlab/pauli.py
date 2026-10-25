@@ -167,6 +167,22 @@ def expectation_label(state: np.ndarray | str, label: str | np.ndarray) -> float
     return float(value.real)
 
 
+def pauli_probabilities(state: np.ndarray, label: str) -> tuple[float, float]:
+    """Return (P(+1), P(-1)) outcome probabilities for measuring Pauli string `label` on `state`."""
+    exp_val = expectation_label(state, label)
+    p_plus = float(np.clip(0.5 * (1.0 + exp_val), 0.0, 1.0))
+    p_minus = float(np.clip(0.5 * (1.0 - exp_val), 0.0, 1.0))
+    if abs(p_plus) < 1e-14:
+        p_plus = 0.0
+    if abs(p_minus) < 1e-14:
+        p_minus = 0.0
+    if abs(p_plus - 1.0) < 1e-14:
+        p_plus = 1.0
+    if abs(p_minus - 1.0) < 1e-14:
+        p_minus = 1.0
+    return p_plus, p_minus
+
+
 def expectation(operator: np.ndarray | Any, state: np.ndarray | str) -> float:
     """⟨ψ|A|ψ⟩. Imaginary part must be numerical noise."""
     if isinstance(state, str) and not isinstance(operator, str):

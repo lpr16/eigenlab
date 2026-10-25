@@ -256,6 +256,9 @@ def entanglement_of_formation(state: np.ndarray) -> float:
     return val
 
 
+from eigenlab.pauli import pauli_probabilities
+
+
 def probabilities(state: np.ndarray) -> np.ndarray:
     ket = np.asarray(state, dtype=complex).reshape(-1)
     norm = np.linalg.norm(ket)

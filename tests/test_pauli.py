@@ -13,6 +13,7 @@ from eigenlab.pauli import (
     pauli_anti,
     pauli_comm,
     pauli_mult,
+    pauli_probabilities,
 )
 from eigenlab.states import ONE, PLUS, ZERO, basis, bell
 
@@ -219,3 +220,22 @@ def test_stabilizer_expectations():
     assert np.isclose(expectation_label(ket_00, "ZI"), 1.0, atol=1e-12)
     assert np.isclose(expectation_label(ket_00, "IZ"), 1.0, atol=1e-12)
     assert np.isclose(expectation_label(ket_00, "XI"), 0.0, atol=1e-12)
+
+
+def test_pauli_probabilities():
+    # Phase 11: Pauli probabilities
+    p_x_plus = pauli_probabilities(PLUS, "X")
+    assert np.allclose(p_x_plus, (1.0, 0.0), atol=1e-12)
+    assert np.isclose(sum(p_x_plus), 1.0, atol=1e-12)
+
+    p_z_plus = pauli_probabilities(PLUS, "Z")
+    assert np.allclose(p_z_plus, (0.5, 0.5), atol=1e-12)
+    assert np.isclose(sum(p_z_plus), 1.0, atol=1e-12)
+
+    p_zz_bell = pauli_probabilities(bell("phi+"), "ZZ")
+    assert np.allclose(p_zz_bell, (1.0, 0.0), atol=1e-12)
+    assert np.isclose(sum(p_zz_bell), 1.0, atol=1e-12)
+
+    p_z_one = pauli_probabilities(basis(1, 1), "Z")
+    assert np.allclose(p_z_one, (0.0, 1.0), atol=1e-12)
+    assert np.isclose(sum(p_z_one), 1.0, atol=1e-12)
