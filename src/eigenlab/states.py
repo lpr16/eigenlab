@@ -337,3 +337,13 @@ def grover_once(marked: int, qubits: int = 2) -> np.ndarray:
     oracle[marked, marked] = -1.0
     diffuser = 2.0 * np.outer(s, np.conj(s)) - np.eye(dim, dtype=complex)
     return diffuser @ (oracle @ s)
+
+
+def qft_matrix(n: int) -> np.ndarray:
+    """Quantum Fourier transform matrix on `n` qubits (1 <= n <= 8): Q_{j,k} = exp(2πi jk / 2^n) / √2^n."""
+    if not 1 <= n <= 8:
+        raise ValueError("qft_matrix requires 1 <= n <= 8 qubits")
+    dim = 1 << n
+    j = np.arange(dim, dtype=float)[:, None]
+    k = np.arange(dim, dtype=float)[None, :]
+    return np.exp(2.0j * np.pi * (j * k) / float(dim)) / np.sqrt(float(dim))

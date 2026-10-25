@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 
 from eigenlab.hamiltonian import Hamiltonian, eigensystem
-from eigenlab.states import grover_once
+from eigenlab.states import grover_once, qft_matrix
 
 
 def evolve(

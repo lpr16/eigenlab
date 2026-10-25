@@ -22,6 +22,7 @@ from eigenlab.states import (
     probabilities,
     purify,
     purity,
+    qft_matrix,
     schmidt_spectrum,
     shannon_entropy,
     swap_test,
@@ -292,3 +293,17 @@ def test_grover_once():
         probs = probabilities(out)
         assert np.isclose(probs[marked], 1.0, atol=1e-12)
         assert np.isclose(abs(np.vdot(basis(marked, 2), out)), 1.0, atol=1e-12)
+
+
+def test_qft_matrix():
+    # Phase 17: Quantum Fourier transform
+    for n in [2, 3]:
+        dim = 1 << n
+        q = qft_matrix(n)
+        assert q.shape == (dim, dim)
+        # Unitary to 1e-12
+        assert np.allclose(q.conj().T @ q, np.eye(dim, dtype=complex), atol=1e-12)
+        assert np.allclose(q @ q.conj().T, np.eye(dim, dtype=complex), atol=1e-12)
+        # qft_matrix(n) @ basis(0, n) is the uniform ket
+        uniform = np.ones(dim, dtype=complex) / np.sqrt(float(dim))
+        assert np.allclose(q @ basis(0, n), uniform, atol=1e-12)
