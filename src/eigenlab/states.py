@@ -323,3 +323,17 @@ def swap_test(psi: np.ndarray, phi: np.ndarray) -> float:
     final_state = h_anc @ (fredkin @ (h_anc @ state0))
     prob_anc_0 = float(np.sum(np.abs(final_state[:4]) ** 2))
     return prob_anc_0
+
+
+def grover_once(marked: int, qubits: int = 2) -> np.ndarray:
+    """One Grover iteration (2|s⟩⟨s| - I) O |s⟩ on `qubits` qubits with marked basis index `marked`."""
+    if not 1 <= qubits <= 8:
+        raise ValueError("grover_once requires 1 <= qubits <= 8")
+    dim = 1 << qubits
+    if not 0 <= marked < dim:
+        raise ValueError(f"marked index {marked} out of range for {qubits} qubits")
+    s = np.ones(dim, dtype=complex) / np.sqrt(float(dim))
+    oracle = np.eye(dim, dtype=complex)
+    oracle[marked, marked] = -1.0
+    diffuser = 2.0 * np.outer(s, np.conj(s)) - np.eye(dim, dtype=complex)
+    return diffuser @ (oracle @ s)

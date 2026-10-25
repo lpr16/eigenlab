@@ -5,6 +5,7 @@ from __future__ import annotations
 import numpy as np
 
 from eigenlab.hamiltonian import Hamiltonian, eigensystem
+from eigenlab.states import grover_once
 
 
 def evolve(

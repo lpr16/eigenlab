@@ -15,6 +15,7 @@ from eigenlab.states import (
     entanglement_entropy,
     entanglement_of_formation,
     ghz,
+    grover_once,
     helstrom,
     negativity,
     partial_trace,
@@ -282,3 +283,12 @@ def test_swap_test():
     phi = np.array([np.cos(1.1), np.exp(-0.3j) * np.sin(1.1)], dtype=complex)
     expected = (1.0 + abs(np.vdot(psi, phi)) ** 2) / 2.0
     assert np.isclose(swap_test(psi, phi), expected, atol=1e-12)
+
+
+def test_grover_once():
+    # Phase 16: One Grover iteration on two qubits
+    for marked in [0, 1, 2, 3]:
+        out = grover_once(marked, qubits=2)
+        probs = probabilities(out)
+        assert np.isclose(probs[marked], 1.0, atol=1e-12)
+        assert np.isclose(abs(np.vdot(basis(marked, 2), out)), 1.0, atol=1e-12)
