@@ -1,7 +1,17 @@
 import numpy as np
 
-from eigenlab.pauli import X, Y, Z, expectation, pauli, pauli_anti, pauli_comm, pauli_mult
-from eigenlab.states import PLUS, ZERO
+from eigenlab.pauli import (
+    X,
+    Y,
+    Z,
+    apply_pauli,
+    expectation,
+    pauli,
+    pauli_anti,
+    pauli_comm,
+    pauli_mult,
+)
+from eigenlab.states import ONE, PLUS, ZERO, basis
 
 
 def test_pauli_algebra():
@@ -83,3 +93,52 @@ def test_pauli_comm_and_anti():
     mat_comm = mat_xi @ mat_zi - mat_zi @ mat_xi
 
     assert np.allclose(term_comm.to_matrix(), mat_comm, atol=1e-12)
+
+
+def test_apply_pauli_signed_permutation(monkeypatch):
+    # Phase 2: A Pauli as a signed permutation
+    import itertools
+    import pytest
+    import eigenlab.hamiltonian
+    import eigenlab.pauli
+    from eigenlab.hamiltonian import Hamiltonian, term_expectation, to_matrix
+
+    # 1. One-qubit checks
+    assert np.allclose(apply_pauli("Z", ZERO), ZERO, atol=1e-12)
+    assert np.allclose(apply_pauli("Z", ONE), -ONE, atol=1e-12)
+    psi_1q = np.array([0.6, 0.8j], dtype=complex)
+    assert np.allclose(apply_pauli("X", psi_1q), np.array([0.8j, 0.6], dtype=complex), atol=1e-12)
+    assert np.allclose(apply_pauli("Y", ZERO), 1j * ONE, atol=1e-12)
+    assert np.allclose(apply_pauli("Y", ONE), -1j * ZERO, atol=1e-12)
+
+    # 2. Every label of length 2 and 3, and every computational basis ket, matches pauli(label) @ ket to 1e-12
+    chars = ["I", "X", "Y", "Z"]
+    for n in [2, 3]:
+        for tup in itertools.product(chars, repeat=n):
+            lbl = "".join(tup)
+            p_mat = pauli(lbl)
+            for idx in range(1 << n):
+                ket = basis(idx, n)
+                assert np.allclose(apply_pauli(lbl, ket), p_mat @ ket, atol=1e-12)
+
+    # 3. Patch eigenlab.pauli.pauli and eigenlab.hamiltonian.pauli so they raise,
+    # then check that expectation of "Z" on basis(0, 1) and term_expectation still return +1
+    def _forbidden_pauli(*args, **kwargs):
+        raise RuntimeError("pauli() matrix builder must not be called")
+
+    monkeypatch.setattr(eigenlab.pauli, "pauli", _forbidden_pauli)
+    monkeypatch.setattr(eigenlab.hamiltonian, "pauli", _forbidden_pauli)
+
+    assert expectation("Z", basis(0, 1)) == 1.0
+    assert term_expectation([(1.0, "Z")], basis(0, 1)) == 1.0
+    assert Hamiltonian([(1.0, "Z")]).expectation(basis(0, 1)) == 1.0
+
+    # 4. Nine qubits: apply_pauli("Z" + "I"*8, basis(0, 9)) equals that basis ket,
+    # and to_matrix of the same one-term Hamiltonian still raises ValueError
+    lbl_9 = "Z" + "I" * 8
+    ket_9 = basis(0, 9)
+    assert np.array_equal(apply_pauli(lbl_9, ket_9), ket_9)
+    h_9 = Hamiltonian([(1.0, lbl_9)])
+    assert h_9.expectation(ket_9) == 1.0
+    with pytest.raises(ValueError, match="n <= 8"):
+        to_matrix(h_9)

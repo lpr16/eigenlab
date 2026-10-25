@@ -87,8 +87,51 @@ def pauli(label: str) -> np.ndarray:
     return operator
 
 
-def expectation(operator: np.ndarray | Any, state: np.ndarray) -> float:
+def apply_pauli(label: str, ket: np.ndarray) -> np.ndarray:
+    """Apply a Pauli string to a state ket as a signed permutation without building a 2^n x 2^n matrix."""
+    if not label or any(char not in _PAULI for char in label):
+        raise ValueError("label must be a non-empty string of I, X, Y, Z")
+    n = len(label)
+    dim = 1 << n
+    vec = np.asarray(ket, dtype=complex).reshape(-1)
+    if vec.size != dim:
+        raise ValueError(f"ket size {vec.size} does not match 2^{n} = {dim}")
+
+    indices = np.arange(dim, dtype=np.int64)
+    parity = np.zeros(dim, dtype=np.int8)
+    flip_mask = 0
+    y_count = 0
+    for q, ch in enumerate(label):
+        bit = 1 << (n - 1 - q)
+        if ch == "X":
+            flip_mask |= bit
+        elif ch == "Z":
+            parity ^= ((indices & bit) != 0).astype(np.int8)
+        elif ch == "Y":
+            flip_mask |= bit
+            parity ^= ((indices & bit) != 0).astype(np.int8)
+            y_count += 1
+
+    phases = (1j**y_count) * np.where(parity, -1.0, 1.0)
+    out = np.empty(dim, dtype=complex)
+    out[indices ^ flip_mask] = phases * vec
+    return out
+
+
+def expectation(operator: np.ndarray | Any, state: np.ndarray | str) -> float:
     """⟨ψ|A|ψ⟩. Imaginary part must be numerical noise."""
+    if isinstance(state, str) and not isinstance(operator, str):
+        operator, state = state, operator
+    if isinstance(operator, str):
+        ket = np.asarray(state, dtype=complex).reshape(-1)
+        norm = np.linalg.norm(ket)
+        if norm == 0:
+            raise ValueError("state has zero norm")
+        ket = ket / norm
+        value = np.vdot(ket, apply_pauli(operator, ket))
+        if abs(value.imag) > 1e-8:
+            raise ValueError("expectation of a non-Hermitian operator")
+        return float(value.real)
     if hasattr(operator, "expectation"):
         return operator.expectation(state)
     elif isinstance(operator, (list, tuple)) and operator and isinstance(operator[0], tuple):

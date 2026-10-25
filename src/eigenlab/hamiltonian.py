@@ -7,7 +7,7 @@ from typing import Sequence
 
 import numpy as np
 
-from eigenlab.pauli import pauli
+from eigenlab.pauli import apply_pauli, pauli
 
 
 @dataclass(frozen=True)
@@ -47,7 +47,7 @@ class Hamiltonian:
 
     def __matmul__(self, other: Hamiltonian) -> Hamiltonian:
         from collections import defaultdict
-        from eigenlab.pauli import pauli_mult
+        from eigenlab.pauli import apply_pauli, pauli_mult
 
         if not self.terms or not other.terms:
             return Hamiltonian([])
@@ -104,8 +104,7 @@ def term_expectation(
     ket = ket / norm
     total = 0.0 + 0.0j
     for coeff, label in terms:
-        op = pauli(label)
-        total += coeff * np.vdot(ket, op @ ket)
+        total += coeff * np.vdot(ket, apply_pauli(label, ket))
     if abs(total.imag) > 1e-8:
         raise ValueError("expectation of a non-Hermitian operator")
     return float(total.real)
