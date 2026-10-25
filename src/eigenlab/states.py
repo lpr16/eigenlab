@@ -275,3 +275,19 @@ def shannon_entropy(state: np.ndarray) -> float:
     if abs(ent) < 1e-14:
         return 0.0
     return ent
+
+
+def helstrom(psi: np.ndarray, phi: np.ndarray) -> float:
+    """Helstrom minimum-error success probability (1 + √(1 - |⟨ψ|φ⟩|²)) / 2 for equal priors."""
+    v1 = np.asarray(psi, dtype=complex).reshape(-1)
+    v2 = np.asarray(phi, dtype=complex).reshape(-1)
+    if v1.size != v2.size:
+        raise ValueError("states must have the same dimension")
+    n1 = np.linalg.norm(v1)
+    n2 = np.linalg.norm(v2)
+    if n1 == 0 or n2 == 0:
+        raise ValueError("state has zero norm")
+    v1 = v1 / n1
+    v2 = v2 / n2
+    overlap_sq = float(abs(np.vdot(v1, v2)) ** 2)
+    return float(0.5 * (1.0 + np.sqrt(max(0.0, 1.0 - overlap_sq))))

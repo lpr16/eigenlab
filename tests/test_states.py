@@ -15,6 +15,7 @@ from eigenlab.states import (
     entanglement_entropy,
     entanglement_of_formation,
     ghz,
+    helstrom,
     negativity,
     partial_trace,
     probabilities,
@@ -256,3 +257,13 @@ def test_shannon_entropy():
     assert shannon_entropy(basis(0, 1)) == 0.0
     assert np.isclose(shannon_entropy(bell("phi+")), 1.0, atol=1e-12)
     assert np.isclose(shannon_entropy(w_state()), np.log2(3.0), atol=1e-12)
+
+
+def test_helstrom():
+    # Phase 14: Helstrom bound (1 + √(1 - |⟨ψ|φ⟩|²)) / 2
+    # Identical states: |⟨0|0⟩|² = 1 => (1 + √(1 - 1)) / 2 = 1/2
+    assert np.isclose(helstrom(ZERO, ZERO), 0.5, atol=1e-12)
+    # Orthogonal states: |⟨0|1⟩|² = 0 => (1 + √(1 - 0)) / 2 = 1
+    assert np.isclose(helstrom(ZERO, ONE), 1.0, atol=1e-12)
+    # |0⟩ against |+⟩: |⟨0|+⟩|² = 1/2 => (1 + √(1/2)) / 2
+    assert np.isclose(helstrom(ZERO, PLUS), (1.0 + np.sqrt(0.5)) / 2.0, atol=1e-12)
