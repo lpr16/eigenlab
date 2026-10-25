@@ -202,6 +202,40 @@ def parity(n: int) -> Hamiltonian:
     return Hamiltonian([(1.0, "X" * n)])
 
 
+def parity_blocks(
+    hamiltonian: np.ndarray | Hamiltonian, n: int | None = None
+) -> tuple[np.ndarray, np.ndarray]:
+    """Restrict `hamiltonian` to the supports of (I ± P)/2 and return (even_spectrum, odd_spectrum)."""
+    if isinstance(hamiltonian, Hamiltonian):
+        h_mat = hamiltonian.to_matrix()
+        if n is None:
+            n = hamiltonian.qubits
+    else:
+        h_mat = np.asarray(hamiltonian, dtype=complex)
+        if n is None:
+            n = int(np.round(np.log2(h_mat.shape[0])))
+    dim = 1 << n
+    if h_mat.shape != (dim, dim):
+        raise ValueError(f"hamiltonian shape {h_mat.shape} does not match 2^{n} = {dim}")
+
+    p_mat = parity(n).to_matrix()
+    ident = np.eye(dim, dtype=complex)
+    proj_plus = 0.5 * (ident + p_mat)
+    proj_minus = 0.5 * (ident - p_mat)
+
+    w_plus, u_plus = np.linalg.eigh(proj_plus)
+    basis_plus = u_plus[:, w_plus > 0.5]
+    h_plus = basis_plus.conj().T @ h_mat @ basis_plus
+    spec_plus = np.sort(np.real(np.linalg.eigvalsh(h_plus)))
+
+    w_minus, u_minus = np.linalg.eigh(proj_minus)
+    basis_minus = u_minus[:, w_minus > 0.5]
+    h_minus = basis_minus.conj().T @ h_mat @ basis_minus
+    spec_minus = np.sort(np.real(np.linalg.eigvalsh(h_minus)))
+
+    return spec_plus, spec_minus
+
+
 def transverse_ising_bdg_matrix(
     qubits: int, coupling: float = 1.0, field: float = 1.0
 ) -> np.ndarray:

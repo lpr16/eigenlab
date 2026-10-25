@@ -6,6 +6,7 @@ from eigenlab.hamiltonian import (
     heisenberg_dimer,
     heisenberg_dimer_terms,
     parity,
+    parity_blocks,
     spectrum,
     term_expectation,
     to_matrix,
@@ -276,5 +277,26 @@ def test_parity_transverse_ising():
     _, evecs_3 = eigensystem(transverse_ising(3, coupling=1.0, field=1.0))
     gs_3 = evecs_3[:, 0]
     assert np.isclose(parity(3).expectation(gs_3), 1.0, atol=1e-12)
+
+
+def test_parity_blocks(monkeypatch):
+    # Phase 22: Parity blocks
+    import eigenlab.hamiltonian
+
+    def _forbidden_simultaneous(*args, **kwargs):
+        raise RuntimeError("simultaneous_eigensystem must not be called")
+
+    monkeypatch.setattr(eigenlab.hamiltonian, "simultaneous_eigensystem", _forbidden_simultaneous)
+
+    param_pairs = [(1.0, 0.0), (1.0, 0.5), (1.0, 1.0), (0.7, 1.3)]
+    for n in [2, 3, 4]:
+        for j_val, h_val in param_pairs:
+            h_mat = transverse_ising(n, coupling=j_val, field=h_val)
+            spec_even, spec_odd = parity_blocks(h_mat, n)
+            assert spec_even.shape == (1 << (n - 1),)
+            assert spec_odd.shape == (1 << (n - 1),)
+            union_spec = np.sort(np.concatenate([spec_even, spec_odd]))
+            full_spec = spectrum(h_mat)
+            assert np.allclose(union_spec, full_spec, atol=1e-8)
 
 
