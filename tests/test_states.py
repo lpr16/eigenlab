@@ -18,6 +18,7 @@ from eigenlab.states import (
     probabilities,
     purity,
     schmidt_spectrum,
+    w_state,
 )
 
 
@@ -168,3 +169,19 @@ def test_ghz_state():
             zz_lbl[i] = "Z"
             zz_lbl[i + 1] = "Z"
             assert np.isclose(expectation_label(state, "".join(zz_lbl)), 1.0, atol=1e-12)
+
+
+def test_w_state():
+    # Phase 7: W state
+    w = w_state()
+    expected_w = (basis(1, 3) + basis(2, 3) + basis(4, 3)) / np.sqrt(3.0)
+    assert np.allclose(w, expected_w, atol=1e-12)
+
+    # Middle-cut entropy equals binary entropy of 1/3
+    expected_entropy = -(1 / 3) * np.log2(1 / 3) - (2 / 3) * np.log2(2 / 3)
+    assert np.isclose(entanglement_entropy(w), expected_entropy, atol=1e-12)
+
+    # Every two-qubit reduction has concurrence 2/3
+    for keep_pair in [(0, 1), (0, 2), (1, 2)]:
+        red_2q = partial_trace(w, 3, keep=keep_pair)
+        assert np.isclose(concurrence(red_2q), 2.0 / 3.0, atol=1e-12)

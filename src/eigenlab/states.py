@@ -192,6 +192,18 @@ def ghz(n: int) -> np.ndarray:
     return ket
 
 
+def w_state(n: int = 3) -> np.ndarray:
+    """Three-qubit W state (|001⟩ + |010⟩ + |100⟩) / √3 (or n-qubit generalization)."""
+    if not 2 <= n <= 8:
+        raise ValueError("w_state requires 2 <= n <= 8 qubits")
+    if n == 3:
+        return (basis(1, 3) + basis(2, 3) + basis(4, 3)) / np.sqrt(3.0)
+    ket = np.zeros(1 << n, dtype=complex)
+    for k in range(n):
+        ket[1 << k] = 1.0 / np.sqrt(float(n))
+    return ket
+
+
 def probabilities(state: np.ndarray) -> np.ndarray:
     ket = np.asarray(state, dtype=complex).reshape(-1)
     norm = np.linalg.norm(ket)
