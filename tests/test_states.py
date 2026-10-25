@@ -13,6 +13,7 @@ from eigenlab.states import (
     concurrence,
     density,
     entanglement_entropy,
+    ghz,
     partial_trace,
     probabilities,
     purity,
@@ -141,3 +142,29 @@ def test_two_qubit_entanglement():
         c = concurrence(superposed)
         assert 0.0 <= c <= 1.0
         assert np.isclose(c, np.abs(np.sin(2 * t)))
+
+
+def test_ghz_state():
+    # Phase 6: GHZ
+    from eigenlab.pauli import expectation_label
+
+    # For n = 2 this is bell("phi+")
+    assert np.allclose(ghz(2), bell("phi+"), atol=1e-12)
+
+    for n in [2, 3, 4]:
+        state = ghz(n)
+        # 1. Entanglement entropy across the middle cut is 1 bit
+        assert np.isclose(entanglement_entropy(state), 1.0, atol=1e-12)
+
+        # 2. The one-qubit reduction has purity 1/2
+        for q in range(n):
+            red = partial_trace(state, n, keep=q)
+            assert np.isclose(purity(red), 0.5, atol=1e-12)
+
+        # 3. ⟨X⊗n⟩ = 1, and ⟨Z_i Z_{i+1}⟩ = 1 for each neighboring pair
+        assert np.isclose(expectation_label(state, "X" * n), 1.0, atol=1e-12)
+        for i in range(n - 1):
+            zz_lbl = ["I"] * n
+            zz_lbl[i] = "Z"
+            zz_lbl[i + 1] = "Z"
+            assert np.isclose(expectation_label(state, "".join(zz_lbl)), 1.0, atol=1e-12)

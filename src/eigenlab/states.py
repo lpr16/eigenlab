@@ -181,6 +181,17 @@ def bell(kind: str = "phi+") -> np.ndarray:
         raise ValueError("kind must be phi+, phi-, psi+, or psi-") from exc
 
 
+def ghz(n: int) -> np.ndarray:
+    """n-qubit GHZ state (|0...0⟩ + |1...1⟩) / √2 for 2 <= n <= 8."""
+    if not 2 <= n <= 8:
+        raise ValueError("ghz requires 2 <= n <= 8 qubits")
+    dim = 1 << n
+    ket = np.zeros(dim, dtype=complex)
+    ket[0] = 1.0 / np.sqrt(2.0)
+    ket[dim - 1] = 1.0 / np.sqrt(2.0)
+    return ket
+
+
 def probabilities(state: np.ndarray) -> np.ndarray:
     ket = np.asarray(state, dtype=complex).reshape(-1)
     norm = np.linalg.norm(ket)
