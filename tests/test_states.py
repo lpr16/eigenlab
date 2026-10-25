@@ -14,6 +14,7 @@ from eigenlab.states import (
     density,
     entanglement_entropy,
     ghz,
+    negativity,
     partial_trace,
     probabilities,
     purify,
@@ -206,3 +207,26 @@ def test_purify():
     s_sq = np.sort(schmidt_spectrum(psi_pur) ** 2)[::-1]
     rho_evals = np.sort(np.linalg.eigvalsh(rho))[::-1]
     assert np.allclose(s_sq, rho_evals, atol=1e-12)
+
+
+def test_negativity():
+    # Phase 9: Negativity
+    for kind in ["phi+", "phi-", "psi+", "psi-"]:
+        assert np.isclose(negativity(bell(kind)), 0.5, atol=1e-12)
+        assert np.isclose(negativity(density(bell(kind))), 0.5, atol=1e-12)
+
+    assert negativity(basis(0, 2)) == 0.0
+    assert negativity(np.kron(PLUS, ZERO)) == 0.0
+
+    # Werner state p |Ψ⁻⟩⟨Ψ⁻| + (1−p) I/4 has negativity max(0, (3p−1)/4)
+    psi_minus_dm = density(bell("psi-"))
+    i4 = np.eye(4, dtype=complex) / 4.0
+    for p in [0.0, 1.0 / 3.0, 0.5, 1.0]:
+        werner = p * psi_minus_dm + (1.0 - p) * i4
+        expected = max(0.0, (3.0 * p - 1.0) / 4.0)
+        val = negativity(werner)
+        if p == 1.0 / 3.0:
+            # Separable boundary: value is exactly 0, not a small positive number
+            assert val == 0.0
+        else:
+            assert np.isclose(val, expected, atol=1e-12)

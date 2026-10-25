@@ -219,6 +219,31 @@ def purify(rho: np.ndarray) -> np.ndarray:
     return ket
 
 
+def negativity(state: np.ndarray) -> float:
+    """Negativity of a two-qubit ket or density matrix (sum of |λ_i| for λ_i < 0 of ρ^{T_1})."""
+    arr = np.asarray(state, dtype=complex)
+    if arr.ndim == 1 or (arr.ndim == 2 and (arr.shape[0] == 1 or arr.shape[1] == 1)):
+        ket = arr.reshape(-1)
+        if ket.size != 4:
+            raise ValueError("negativity requires a two-qubit ket (size 4) or 4x4 density matrix")
+        rho = density(ket)
+    elif arr.ndim == 2 and arr.shape == (4, 4):
+        tr = np.trace(arr)
+        if abs(tr) == 0:
+            raise ValueError("density matrix has zero trace")
+        rho = arr / tr
+    else:
+        raise ValueError("negativity requires a two-qubit ket (size 4) or 4x4 density matrix")
+
+    rho_pt = rho.reshape((2, 2, 2, 2)).transpose((0, 3, 2, 1)).reshape((4, 4))
+    evals = np.linalg.eigvalsh(rho_pt)
+    neg_evals = evals[evals < -1e-14]
+    val = float(-np.sum(neg_evals))
+    if val < 1e-14:
+        return 0.0
+    return val
+
+
 def probabilities(state: np.ndarray) -> np.ndarray:
     ket = np.asarray(state, dtype=complex).reshape(-1)
     norm = np.linalg.norm(ket)
