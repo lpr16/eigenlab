@@ -175,3 +175,5 @@ Leave these named as not done: a derivative of the H₂ curve, any molecule beyo
 ## Done
 
 After phase 8 the lab is still a state, a Hamiltonian, and a spectrum. The same H₂ number now comes out of two encodings. The transverse Ising spectrum comes out of a `2n × 2n` matrix as well as out of `2^n`. The ground states carry a spin and a set of occupations. One molecule was added, from a book, on the eigensolver that was already here.
+
+The continuation is `docs/antigravity-haul.md`.

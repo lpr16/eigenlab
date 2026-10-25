@@ -55,6 +55,28 @@ multiply_pauli = pauli_mult
 pauli_multiply = pauli_mult
 
 
+def pauli_comm(a: str, b: str) -> tuple[complex, str]:
+    """Commutator [A, B] = AB - BA of two equal-length Pauli strings.
+
+    Returns (phase, label) using pauli_mult, where phase is 0 if A and B commute,
+    or ±2i if they anticommute.
+    """
+    p1, label = pauli_mult(a, b)
+    p2, _ = pauli_mult(b, a)
+    return p1 - p2, label
+
+
+def pauli_anti(a: str, b: str) -> tuple[complex, str]:
+    """Anticommutator {A, B} = AB + BA of two equal-length Pauli strings.
+
+    Returns (phase, label) using pauli_mult, where phase is 0 if A and B anticommute,
+    or ±2 if they commute.
+    """
+    p1, label = pauli_mult(a, b)
+    p2, _ = pauli_mult(b, a)
+    return p1 + p2, label
+
+
 def pauli(label: str) -> np.ndarray:
     """Build a multi-qubit Pauli from a string such as ``XZ`` or ``YIY``."""
     if not label or any(char not in _PAULI for char in label):

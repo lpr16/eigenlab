@@ -100,3 +100,4 @@ def test_hellmann_feynman_hubbard_dimer():
 
         exp_double_occ = double_occ_op.expectation(singlet_vec)
         assert np.isclose(exp_double_occ, dE_dU_exact, atol=1e-8)
+
