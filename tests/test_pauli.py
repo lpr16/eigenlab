@@ -5,6 +5,7 @@ from eigenlab.pauli import (
     Y,
     Z,
     apply_pauli,
+    conjugate_clifford,
     conjugate_pauli,
     expectation,
     pauli,
@@ -167,3 +168,35 @@ def test_conjugate_pauli():
             p_mat = pauli(p_lbl)
             phase, conj_lbl = conjugate_pauli(q_lbl, p_lbl)
             assert np.allclose(phase * pauli(conj_lbl), p_mat @ q_mat @ p_mat, atol=1e-12)
+
+
+def test_conjugate_clifford():
+    # Phase 4: Hadamard and S
+    import itertools
+
+    H_mat = np.array([[1.0, 1.0], [1.0, -1.0]], dtype=complex) / np.sqrt(2.0)
+    S_mat = np.array([[1.0, 0.0], [0.0, 1.0j]], dtype=complex)
+    I_mat = np.eye(2, dtype=complex)
+
+    # Single-qubit checks
+    assert conjugate_clifford("X", "H", 0) == (1.0, "Z")
+    assert conjugate_clifford("Z", "H", 0) == (1.0, "X")
+    assert conjugate_clifford("Y", "H", 0) == (-1.0, "Y")
+
+    assert conjugate_clifford("X", "S", 0) == (1.0, "Y")
+    assert conjugate_clifford("Y", "S", 0) == (-1.0, "X")
+    assert conjugate_clifford("Z", "S", 0) == (1.0, "Z")
+
+    # For every length-2 label, both qubits, and both gates, matches matrix conjugation U P U† to 1e-12
+    chars = ["I", "X", "Y", "Z"]
+    labels_2 = ["".join(t) for t in itertools.product(chars, repeat=2)]
+    gate_mats = {"H": H_mat, "S": S_mat}
+
+    for lbl in labels_2:
+        p_mat = pauli(lbl)
+        for gate_name, g_mat in gate_mats.items():
+            for q in [0, 1]:
+                u_2q = np.kron(g_mat, I_mat) if q == 0 else np.kron(I_mat, g_mat)
+                expected = u_2q @ p_mat @ u_2q.conj().T
+                phase, out_lbl = conjugate_clifford(lbl, gate_name, q)
+                assert np.allclose(phase * pauli(out_lbl), expected, atol=1e-12)

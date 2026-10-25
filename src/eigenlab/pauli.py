@@ -84,6 +84,32 @@ def conjugate_pauli(target: str, conjugator: str) -> tuple[complex, str]:
     return p1 * p2, out_label
 
 
+_CLIFFORD_TABLE: dict[tuple[str, str], tuple[complex, str]] = {
+    ("H", "I"): (1.0 + 0.0j, "I"),
+    ("H", "X"): (1.0 + 0.0j, "Z"),
+    ("H", "Y"): (-1.0 + 0.0j, "Y"),
+    ("H", "Z"): (1.0 + 0.0j, "X"),
+    ("S", "I"): (1.0 + 0.0j, "I"),
+    ("S", "X"): (1.0 + 0.0j, "Y"),
+    ("S", "Y"): (-1.0 + 0.0j, "X"),
+    ("S", "Z"): (1.0 + 0.0j, "Z"),
+}
+
+
+def conjugate_clifford(label: str, gate: str, qubit: int) -> tuple[complex, str]:
+    """Conjugate a Pauli label by a single-qubit Clifford gate U in {'H', 'S'} on `qubit`: U P U†."""
+    if not label or any(char not in _PAULI for char in label):
+        raise ValueError("label must be a non-empty string of I, X, Y, Z")
+    if gate not in ("H", "S"):
+        raise ValueError(f"unsupported gate '{gate}'; must be 'H' or 'S'")
+    if not 0 <= qubit < len(label):
+        raise ValueError(f"qubit {qubit} out of range for label of length {len(label)}")
+    chars = list(label)
+    phase, new_char = _CLIFFORD_TABLE[(gate, chars[qubit])]
+    chars[qubit] = new_char
+    return phase, "".join(chars)
+
+
 def pauli(label: str) -> np.ndarray:
     """Build a multi-qubit Pauli from a string such as ``XZ`` or ``YIY``."""
     if not label or any(char not in _PAULI for char in label):
