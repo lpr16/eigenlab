@@ -556,5 +556,29 @@ def test_one_particle_rdm_and_natural_occupations():
     assert occ_str[0] > 0.5
 
 
+def test_hubbard_dimer_occupation_block(monkeypatch):
+    # Phase 23: Occupation block of the Hubbard dimer
+    import eigenlab.hamiltonian
+    from eigenlab.fermions import (
+        hubbard_dimer,
+        hubbard_dimer_occupation_block,
+        occupation_block,
+    )
+
+    def _forbidden_simultaneous(*args, **kwargs):
+        raise RuntimeError("simultaneous_eigensystem must not be called")
+
+    monkeypatch.setattr(eigenlab.hamiltonian, "simultaneous_eigensystem", _forbidden_simultaneous)
+
+    t = 1.0
+    for u in [0.0, 4.0]:
+        block = hubbard_dimer_occupation_block(t=t, U=u, n_particles=2)
+        assert block.shape == (6, 6)
+        assert np.allclose(block, occupation_block(hubbard_dimer(t=t, U=u), n_particles=2))
+        evals = np.sort(np.real(np.linalg.eigvalsh(block)))
+        expected_lowest = (u - np.sqrt(u**2 + 16.0 * t**2)) / 2.0
+        assert np.isclose(evals[0], expected_lowest, atol=1e-12)
+
+
 
 

@@ -248,6 +248,31 @@ def hubbard_dimer(
     return h.simplify()
 
 
+def occupation_block(
+    hamiltonian: Hamiltonian | np.ndarray,
+    n_particles: int = 2,
+    n_orbitals: int | None = None,
+) -> np.ndarray:
+    """Restrict a Hamiltonian matrix to computational basis states with bit count `n_particles`."""
+    h_mat = (
+        hamiltonian.to_matrix()
+        if isinstance(hamiltonian, Hamiltonian)
+        else np.asarray(hamiltonian, dtype=complex)
+    )
+    dim = h_mat.shape[0]
+    if n_orbitals is None:
+        n_orbitals = int(np.round(np.log2(dim)))
+    indices = [idx for idx in range(dim) if idx.bit_count() == n_particles]
+    return h_mat[np.ix_(indices, indices)]
+
+
+def hubbard_dimer_occupation_block(
+    t: float = 1.0, U: float = 0.0, n_particles: int = 2
+) -> np.ndarray:
+    """Restrict hubbard_dimer(t, U) to computational basis states with bit count `n_particles`."""
+    return occupation_block(hubbard_dimer(t=t, U=U), n_particles=n_particles, n_orbitals=4)
+
+
 def tag_sectors(
     state: np.ndarray,
     n_spatial: int,
