@@ -580,5 +580,36 @@ def test_hubbard_dimer_occupation_block(monkeypatch):
         assert np.isclose(evals[0], expected_lowest, atol=1e-12)
 
 
+def test_simultaneous_eigensystem_is_labeled_and_matches_occupation_block():
+    # Phase 25: The perturbed solver stays, and is labeled
+    from eigenlab.fermions import (
+        hubbard_dimer,
+        hubbard_dimer_occupation_block,
+        total_number_operator,
+    )
+    from eigenlab.hamiltonian import simultaneous_eigensystem
+
+    doc = simultaneous_eigensystem.__doc__ or ""
+    assert "irrational" in doc
+    assert "eigh" in doc
+    assert "not a projector" in doc
+
+    t = 1.0
+    u = 4.0
+    h_hub = hubbard_dimer(t=t, U=u)
+    n_tot = total_number_operator(4)
+    evals, evecs = simultaneous_eigensystem(h_hub, n_tot)
+    n2_evals = np.sort(
+        [
+            evals[col]
+            for col in range(16)
+            if np.isclose(round(n_tot.expectation(evecs[:, col])), 2)
+        ]
+    )
+    block = hubbard_dimer_occupation_block(t=t, U=u, n_particles=2)
+    block_evals = np.sort(np.real(np.linalg.eigvalsh(block)))
+    assert np.allclose(n2_evals, block_evals, atol=1e-8)
+
+
 
 

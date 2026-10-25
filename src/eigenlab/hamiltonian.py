@@ -301,7 +301,11 @@ def simultaneous_eigensystem(
     hamiltonian: np.ndarray | Hamiltonian,
     commuting: Sequence[np.ndarray | Hamiltonian] | np.ndarray | Hamiltonian,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Simultaneously diagonalize a Hamiltonian and one or more commuting symmetries."""
+    """Simultaneously diagonalize a Hamiltonian and one or more commuting symmetries.
+
+    Adds a small irrational multiple of each commuting operator and calls `eigh`.
+    It is not a projector.
+    """
     h_mat = (
         hamiltonian.to_matrix()
         if isinstance(hamiltonian, Hamiltonian)
