@@ -125,6 +125,13 @@ def xxz_dimer_terms(delta: float = 1.0) -> Hamiltonian:
     return Hamiltonian([(1.0, "XX"), (1.0, "YY"), (float(delta), "ZZ")])
 
 
+def chsh_operator() -> Hamiltonian:
+    """CHSH operator A⊗B + A⊗B' + A'⊗B - A'⊗B' with A=Z, A'=X, B=(Z+X)/√2, B'=(Z-X)/√2."""
+    from eigenlab.states import chsh_operator as _chsh
+
+    return _chsh()
+
+
 def xxz_dimer(delta: float = 1.0) -> np.ndarray:
     """H = XX + YY + Δ ZZ."""
     return xxz_dimer_terms(delta=delta).to_matrix()

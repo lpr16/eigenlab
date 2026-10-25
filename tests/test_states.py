@@ -10,6 +10,7 @@ from eigenlab.states import (
     basis,
     bell,
     bloch,
+    chsh_operator,
     concurrence,
     cyclic_shift,
     density,
@@ -322,3 +323,36 @@ def test_cyclic_shift():
     expected_diag = np.array([omega ** (-k) for k in range(4)], dtype=complex)
     assert np.allclose(expected_diag, [1.0, -1.0j, -1.0, 1.0j], atol=1e-12)
     assert np.allclose(diag_mat, np.diag(expected_diag), atol=1e-12)
+
+
+def test_chsh_operator():
+    # Phase 19: CHSH
+    from eigenlab.pauli import X, Z, expectation
+
+    op = chsh_operator()
+
+    # Check matrix construction from A=Z, A'=X, B=(Z+X)/√2, B'=(Z-X)/√2
+    A = Z
+    A_p = X
+    B = (Z + X) / np.sqrt(2.0)
+    B_p = (Z - X) / np.sqrt(2.0)
+    expected_mat = np.kron(A, B) + np.kron(A, B_p) + np.kron(A_p, B) - np.kron(A_p, B_p)
+    assert np.allclose(op.to_matrix(), expected_mat, atol=1e-12)
+
+    # bell("phi+") gives 2√2
+    assert np.isclose(expectation(op, bell("phi+")), 2.0 * np.sqrt(2.0), atol=1e-12)
+
+    # basis(0, 2) = |00⟩ gives √2:
+    # On |0⟩, ⟨Z⟩ = 1 and ⟨X⟩ = 0, so ⟨A⟩ = 1, ⟨A'⟩ = 0, ⟨B⟩ = 1/√2, ⟨B'⟩ = 1/√2.
+    # The four correlators on |00⟩ are:
+    #   ⟨A⊗B⟩   = 1 * (1/√2) = 1/√2
+    #   ⟨A⊗B'⟩  = 1 * (1/√2) = 1/√2
+    #   ⟨A'⊗B⟩  = 0 * (1/√2) = 0
+    #   ⟨A'⊗B'⟩ = 0 * (1/√2) = 0
+    # The two A' terms vanish and the two A terms contribute 1/√2 each, summing to √2.
+    ket_00 = basis(0, 2)
+    assert np.isclose(expectation(np.kron(A, B), ket_00), 1.0 / np.sqrt(2.0), atol=1e-12)
+    assert np.isclose(expectation(np.kron(A, B_p), ket_00), 1.0 / np.sqrt(2.0), atol=1e-12)
+    assert np.isclose(expectation(np.kron(A_p, B), ket_00), 0.0, atol=1e-12)
+    assert np.isclose(expectation(np.kron(A_p, B_p), ket_00), 0.0, atol=1e-12)
+    assert np.isclose(expectation(op, ket_00), np.sqrt(2.0), atol=1e-12)

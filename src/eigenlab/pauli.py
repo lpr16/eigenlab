@@ -205,6 +205,13 @@ def post_measure(state: np.ndarray, label: str, outcome: int) -> np.ndarray:
     return proj
 
 
+def chsh_operator():
+    """CHSH operator A⊗B + A⊗B' + A'⊗B - A'⊗B' with A=Z, A'=X, B=(Z+X)/√2, B'=(Z-X)/√2."""
+    from eigenlab.states import chsh_operator as _chsh
+
+    return _chsh()
+
+
 def expectation(operator: np.ndarray | Any, state: np.ndarray | str) -> float:
     """⟨ψ|A|ψ⟩. Imaginary part must be numerical noise."""
     if isinstance(state, str) and not isinstance(operator, str):

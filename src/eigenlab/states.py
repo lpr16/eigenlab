@@ -358,3 +358,22 @@ def cyclic_shift(n: int) -> np.ndarray:
     for k in range(dim):
         mat[(k + 1) % dim, k] = 1.0
     return mat
+
+
+def chsh_operator():
+    """CHSH operator A⊗B + A⊗B' + A'⊗B - A'⊗B' with A=Z, A'=X, B=(Z+X)/√2, B'=(Z-X)/√2."""
+    from eigenlab.hamiltonian import Hamiltonian
+
+    s = 1.0 / np.sqrt(2.0)
+    # A⊗B = (ZZ + ZX)/√2, A⊗B' = (ZZ - ZX)/√2, A'⊗B = (XZ + XX)/√2, -A'⊗B' = (-XZ + XX)/√2
+    terms = [
+        (s, "ZZ"),
+        (s, "ZX"),
+        (s, "ZZ"),
+        (-s, "ZX"),
+        (s, "XZ"),
+        (s, "XX"),
+        (-s, "XZ"),
+        (s, "XX"),
+    ]
+    return Hamiltonian(terms).simplify()
