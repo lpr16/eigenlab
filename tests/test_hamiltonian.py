@@ -4,6 +4,7 @@ from eigenlab.hamiltonian import (
     Hamiltonian,
     eigensystem,
     heisenberg_dimer,
+    heisenberg_dimer_spin_blocks,
     heisenberg_dimer_terms,
     parity,
     parity_blocks,
@@ -298,5 +299,23 @@ def test_parity_blocks(monkeypatch):
             union_spec = np.sort(np.concatenate([spec_even, spec_odd]))
             full_spec = spectrum(h_mat)
             assert np.allclose(union_spec, full_spec, atol=1e-8)
+
+
+def test_heisenberg_dimer_spin_blocks():
+    # Phase 24: Spin blocks of the Heisenberg dimer
+    sz = Hamiltonian([(0.5, "ZI"), (0.5, "IZ")])
+    assert np.isclose(sz.expectation(basis(0, 2)), 1.0)
+    assert np.isclose(sz.expectation(basis(1, 2)), 0.0)
+    assert np.isclose(sz.expectation(basis(2, 2)), 0.0)
+    assert np.isclose(sz.expectation(basis(3, 2)), -1.0)
+
+    blocks = heisenberg_dimer_spin_blocks()
+    # S_z = 0 block on |01⟩ and |10⟩ has energies -3 and +1
+    evals_sz0 = np.sort(np.real(np.linalg.eigvalsh(blocks[0])))
+    assert np.allclose(evals_sz0, [-3.0, 1.0], atol=1e-12)
+
+    # |00⟩ (S_z = +1) and |11⟩ (S_z = -1) each have energy +1
+    assert np.allclose(np.real(np.linalg.eigvalsh(blocks[1])), [1.0], atol=1e-12)
+    assert np.allclose(np.real(np.linalg.eigvalsh(blocks[-1])), [1.0], atol=1e-12)
 
 

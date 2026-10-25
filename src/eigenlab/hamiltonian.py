@@ -120,6 +120,16 @@ def heisenberg_dimer() -> np.ndarray:
     return heisenberg_dimer_terms().to_matrix()
 
 
+def heisenberg_dimer_spin_blocks() -> dict[int, np.ndarray]:
+    """Restrict heisenberg_dimer to S_z = +1 (|00⟩), S_z = 0 (|01⟩, |10⟩), and S_z = -1 (|11⟩) blocks."""
+    h = heisenberg_dimer()
+    return {
+        1: h[np.ix_([0], [0])],
+        0: h[np.ix_([1, 2], [1, 2])],
+        -1: h[np.ix_([3], [3])],
+    }
+
+
 def xxz_dimer_terms(delta: float = 1.0) -> Hamiltonian:
     """Term list for XXZ dimer: H = XX + YY + Δ ZZ."""
     return Hamiltonian([(1.0, "XX"), (1.0, "YY"), (float(delta), "ZZ")])
