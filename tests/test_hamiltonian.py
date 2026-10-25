@@ -5,6 +5,7 @@ from eigenlab.hamiltonian import (
     eigensystem,
     heisenberg_dimer,
     heisenberg_dimer_terms,
+    parity,
     spectrum,
     term_expectation,
     to_matrix,
@@ -254,5 +255,26 @@ def test_total_spin_qubits():
         exp_trip_heis = h_heis.expectation(trip)
         assert np.isclose(exp_trip_heis, 1.0)
         assert np.isclose(1.5 + 0.5 * exp_trip_heis, 2.0)
+
+
+def test_parity_transverse_ising():
+    # Phase 21: Parity of the transverse Ising chain
+    for n in [2, 3, 4]:
+        p_op = parity(n)
+        assert p_op.terms == [(1.0 + 0.0j, "X" * n)]
+        p_mat = p_op.to_matrix()
+        h_mat = transverse_ising(n, coupling=1.0, field=1.0)
+        assert np.allclose(p_mat @ h_mat - h_mat @ p_mat, 0.0, atol=1e-12)
+
+        # Even cat (|0...0⟩ + |1...1⟩)/√2 has ⟨P⟩ = +1; odd cat has ⟨P⟩ = -1
+        even_cat = (basis(0, n) + basis((1 << n) - 1, n)) / np.sqrt(2.0)
+        odd_cat = (basis(0, n) - basis((1 << n) - 1, n)) / np.sqrt(2.0)
+        assert np.isclose(p_op.expectation(even_cat), 1.0, atol=1e-12)
+        assert np.isclose(p_op.expectation(odd_cat), -1.0, atol=1e-12)
+
+    # Ground state at n = 3, J = 1, h = 1 has ⟨P⟩ = +1
+    _, evecs_3 = eigensystem(transverse_ising(3, coupling=1.0, field=1.0))
+    gs_3 = evecs_3[:, 0]
+    assert np.isclose(parity(3).expectation(gs_3), 1.0, atol=1e-12)
 
 

@@ -195,6 +195,13 @@ def transverse_ising(
     return transverse_ising_terms(qubits, coupling=coupling, field=field).to_matrix()
 
 
+def parity(n: int) -> Hamiltonian:
+    """Spin-flip parity operator P = X^⊗n as a Hamiltonian term list."""
+    if n < 1:
+        raise ValueError("n must be at least 1")
+    return Hamiltonian([(1.0, "X" * n)])
+
+
 def transverse_ising_bdg_matrix(
     qubits: int, coupling: float = 1.0, field: float = 1.0
 ) -> np.ndarray:
