@@ -77,6 +77,13 @@ def pauli_anti(a: str, b: str) -> tuple[complex, str]:
     return p1 + p2, label
 
 
+def conjugate_pauli(target: str, conjugator: str) -> tuple[complex, str]:
+    """Conjugate target Pauli string Q by conjugator P: returns (phase, label) for P Q P."""
+    p1, mid = pauli_mult(conjugator, target)
+    p2, out_label = pauli_mult(mid, conjugator)
+    return p1 * p2, out_label
+
+
 def pauli(label: str) -> np.ndarray:
     """Build a multi-qubit Pauli from a string such as ``XZ`` or ``YIY``."""
     if not label or any(char not in _PAULI for char in label):

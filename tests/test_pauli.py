@@ -5,6 +5,7 @@ from eigenlab.pauli import (
     Y,
     Z,
     apply_pauli,
+    conjugate_pauli,
     expectation,
     pauli,
     pauli_anti,
@@ -142,3 +143,27 @@ def test_apply_pauli_signed_permutation(monkeypatch):
     assert h_9.expectation(ket_9) == 1.0
     with pytest.raises(ValueError, match="n <= 8"):
         to_matrix(h_9)
+
+
+def test_conjugate_pauli():
+    # Phase 3: Conjugation by a Pauli
+    import itertools
+
+    # 1. XZX = -Z and YXY = -X on one qubit
+    phase_xzx, lbl_xzx = conjugate_pauli("Z", "X")
+    assert phase_xzx == -1.0
+    assert lbl_xzx == "Z"
+
+    phase_yxy, lbl_yxy = conjugate_pauli("X", "Y")
+    assert phase_yxy == -1.0
+    assert lbl_yxy == "X"
+
+    # 2. For every pair of length-2 labels, matches P @ Q @ P from matrices to 1e-12
+    chars = ["I", "X", "Y", "Z"]
+    labels_2 = ["".join(t) for t in itertools.product(chars, repeat=2)]
+    for q_lbl in labels_2:
+        q_mat = pauli(q_lbl)
+        for p_lbl in labels_2:
+            p_mat = pauli(p_lbl)
+            phase, conj_lbl = conjugate_pauli(q_lbl, p_lbl)
+            assert np.allclose(phase * pauli(conj_lbl), p_mat @ q_mat @ p_mat, atol=1e-12)
