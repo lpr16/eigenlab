@@ -204,6 +204,21 @@ def w_state(n: int = 3) -> np.ndarray:
     return ket
 
 
+def purify(rho: np.ndarray) -> np.ndarray:
+    """Purify a one-qubit density matrix ρ = ∑_i p_i |u_i⟩⟨u_i| into ∑_i √p_i |u_i⟩ ⊗ |i⟩."""
+    mat = np.asarray(rho, dtype=complex)
+    if mat.shape != (2, 2):
+        raise ValueError("purify requires a 2x2 one-qubit density matrix")
+    evals, evecs = np.linalg.eigh(mat)
+    idx = np.argsort(np.real(evals))[::-1]
+    evals = np.maximum(0.0, np.real(evals[idx]))
+    evecs = evecs[:, idx]
+    ket = np.zeros(4, dtype=complex)
+    for i in range(2):
+        ket += np.sqrt(evals[i]) * np.kron(evecs[:, i], basis(i, 1))
+    return ket
+
+
 def probabilities(state: np.ndarray) -> np.ndarray:
     ket = np.asarray(state, dtype=complex).reshape(-1)
     norm = np.linalg.norm(ket)

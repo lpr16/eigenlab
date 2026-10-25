@@ -16,6 +16,7 @@ from eigenlab.states import (
     ghz,
     partial_trace,
     probabilities,
+    purify,
     purity,
     schmidt_spectrum,
     w_state,
@@ -185,3 +186,23 @@ def test_w_state():
     for keep_pair in [(0, 1), (0, 2), (1, 2)]:
         red_2q = partial_trace(w, 3, keep=keep_pair)
         assert np.isclose(concurrence(red_2q), 2.0 / 3.0, atol=1e-12)
+
+
+def test_purify():
+    # Phase 8: Purification
+    rho = np.array([[0.7, 0.2 - 0.1j], [0.2 + 0.1j, 0.3]], dtype=complex)
+    psi_pur = purify(rho)
+    assert psi_pur.shape == (4,)
+
+    # 1. Tracing out qubit 1 (keep qubit 0) returns ρ
+    red_0 = partial_trace(psi_pur, 2, keep=0)
+    assert np.allclose(red_0, rho, atol=1e-12)
+
+    # 2. purify of I/2 has concurrence 1
+    i_over_2 = 0.5 * np.eye(2, dtype=complex)
+    assert np.isclose(concurrence(purify(i_over_2)), 1.0, atol=1e-12)
+
+    # 3. Squared Schmidt spectrum equals the eigenvalues of ρ
+    s_sq = np.sort(schmidt_spectrum(psi_pur) ** 2)[::-1]
+    rho_evals = np.sort(np.linalg.eigvalsh(rho))[::-1]
+    assert np.allclose(s_sq, rho_evals, atol=1e-12)
