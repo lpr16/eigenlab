@@ -25,6 +25,7 @@ from eigenlab.states import (
     purify,
     purity,
     qft_matrix,
+    relative_entropy,
     schmidt_spectrum,
     shannon_entropy,
     swap_test,
@@ -356,3 +357,16 @@ def test_chsh_operator():
     assert np.isclose(expectation(np.kron(A_p, B), ket_00), 0.0, atol=1e-12)
     assert np.isclose(expectation(np.kron(A_p, B_p), ket_00), 0.0, atol=1e-12)
     assert np.isclose(expectation(op, ket_00), np.sqrt(2.0), atol=1e-12)
+
+
+def test_relative_entropy():
+    # Phase 20: Relative entropy
+    rho_0 = density(ZERO)
+    i_over_2 = 0.5 * np.eye(2, dtype=complex)
+
+    assert np.isclose(relative_entropy(rho_0, i_over_2), 1.0, atol=1e-12)
+    assert relative_entropy(i_over_2, i_over_2) == 0.0
+
+    # sigma must be positive definite; otherwise raise ValueError
+    with pytest.raises(ValueError, match="positive definite"):
+        relative_entropy(i_over_2, rho_0)

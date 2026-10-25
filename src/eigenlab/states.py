@@ -377,3 +377,35 @@ def chsh_operator():
         (s, "XX"),
     ]
     return Hamiltonian(terms).simplify()
+
+
+def relative_entropy(rho: np.ndarray, sigma: np.ndarray) -> float:
+    """Quantum relative entropy S(ρ || σ) = Tr(ρ log2 ρ) - Tr(ρ log2 σ) in bits."""
+    r = np.asarray(rho, dtype=complex)
+    s = np.asarray(sigma, dtype=complex)
+    if r.ndim == 1:
+        r = density(r)
+    if s.ndim == 1:
+        s = density(s)
+    if r.ndim != 2 or r.shape[0] != r.shape[1] or r.shape != s.shape:
+        raise ValueError("rho and sigma must be square matrices of the same dimension")
+    tr_r = np.trace(r)
+    tr_s = np.trace(s)
+    if abs(tr_r) == 0 or abs(tr_s) == 0:
+        raise ValueError("density matrix has zero trace")
+    r = r / tr_r
+    s = s / tr_s
+
+    evals_s, evecs_s = np.linalg.eigh(s)
+    if np.any(np.real(evals_s) <= 1e-12):
+        raise ValueError("sigma must be positive definite")
+
+    log2_s = evecs_s @ np.diag(np.log2(np.real(evals_s))) @ evecs_s.conj().T
+    evals_r = np.real(np.linalg.eigvalsh(r))
+    pos_r = evals_r[evals_r > 1e-15]
+    tr_r_log2_r = float(np.sum(pos_r * np.log2(pos_r))) if pos_r.size else 0.0
+    tr_r_log2_s = float(np.real(np.trace(r @ log2_s)))
+    val = tr_r_log2_r - tr_r_log2_s
+    if abs(val) < 1e-14:
+        return 0.0
+    return float(val)
