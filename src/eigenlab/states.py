@@ -347,3 +347,14 @@ def qft_matrix(n: int) -> np.ndarray:
     j = np.arange(dim, dtype=float)[:, None]
     k = np.arange(dim, dtype=float)[None, :]
     return np.exp(2.0j * np.pi * (j * k) / float(dim)) / np.sqrt(float(dim))
+
+
+def cyclic_shift(n: int) -> np.ndarray:
+    """Cyclic shift permutation matrix T on `n` qubits with T|k⟩ = |k+1 mod 2^n⟩."""
+    if not 1 <= n <= 8:
+        raise ValueError("cyclic_shift requires 1 <= n <= 8 qubits")
+    dim = 1 << n
+    mat = np.zeros((dim, dim), dtype=complex)
+    for k in range(dim):
+        mat[(k + 1) % dim, k] = 1.0
+    return mat

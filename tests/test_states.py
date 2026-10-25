@@ -11,6 +11,7 @@ from eigenlab.states import (
     bell,
     bloch,
     concurrence,
+    cyclic_shift,
     density,
     entanglement_entropy,
     entanglement_of_formation,
@@ -307,3 +308,17 @@ def test_qft_matrix():
         # qft_matrix(n) @ basis(0, n) is the uniform ket
         uniform = np.ones(dim, dtype=complex) / np.sqrt(float(dim))
         assert np.allclose(q @ basis(0, n), uniform, atol=1e-12)
+
+
+def test_cyclic_shift():
+    # Phase 18: The clock shift
+    t_mat = cyclic_shift(2)
+    for k in range(4):
+        assert np.allclose(t_mat @ basis(k, 2), basis((k + 1) % 4, 2), atol=1e-12)
+
+    q = qft_matrix(2)
+    diag_mat = q.conj().T @ t_mat @ q
+    omega = np.exp(2.0j * np.pi / 4.0)
+    expected_diag = np.array([omega ** (-k) for k in range(4)], dtype=complex)
+    assert np.allclose(expected_diag, [1.0, -1.0j, -1.0, 1.0j], atol=1e-12)
+    assert np.allclose(diag_mat, np.diag(expected_diag), atol=1e-12)
