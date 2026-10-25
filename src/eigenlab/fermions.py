@@ -172,6 +172,31 @@ def tight_binding_chain(
         raise ValueError(f"Unknown mapping: {mapping}. Must be 'jordan_wigner' or 'bravyi_kitaev'")
 
 
+def ssh_chain(
+    n: int, v: float = 1.0, w: float = 1.0, mapping: str = "jordan_wigner"
+) -> Hamiltonian:
+    """Open Su-Schrieffer-Heeger (SSH) chain on even `n >= 2` sites with alternating hoppings v, w."""
+    if n < 2 or n % 2 != 0:
+        raise ValueError("ssh_chain requires an even number of sites n >= 2")
+    map_norm = mapping.lower()
+    if map_norm in ("jordan_wigner", "jw"):
+        a_fn = jordan_wigner_a
+        adag_fn = jordan_wigner_adag
+    elif map_norm in ("bravyi_kitaev", "bk"):
+        a_fn = bravyi_kitaev_a
+        adag_fn = bravyi_kitaev_adag
+    else:
+        raise ValueError(f"Unknown mapping: {mapping}. Must be 'jordan_wigner' or 'bravyi_kitaev'")
+
+    H = Hamiltonian([(0.0, "I" * n)])
+    for i in range(n - 1):
+        amp = float(v) if (i % 2 == 0) else float(w)
+        if abs(amp) > 1e-15:
+            hop = adag_fn(i, n) @ a_fn(i + 1, n) + adag_fn(i + 1, n) @ a_fn(i, n)
+            H = H + (-amp * hop)
+    return H.simplify()
+
+
 def total_spin_z(n_spatial: int) -> Hamiltonian:
     """Total spin projection S_z = (1/2) ∑_i (n_{i↑} - n_{i↓}).
 

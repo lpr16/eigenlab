@@ -611,5 +611,64 @@ def test_simultaneous_eigensystem_is_labeled_and_matches_occupation_block():
     assert np.allclose(n2_evals, block_evals, atol=1e-8)
 
 
+def test_ssh_chain():
+    # Phase 26: Su-Schrieffer-Heeger chain
+    import itertools
+    from eigenlab.fermions import ssh_chain, tight_binding_chain
+    from eigenlab.hamiltonian import spectrum
+
+    # 1. When v = w = t, term list matches tight_binding_chain(n, t) to 1e-12 after simplify
+    t_val = 1.35
+    for n in [2, 4]:
+        h_ssh = ssh_chain(n, v=t_val, w=t_val).simplify()
+        h_tb = tight_binding_chain(n, t=t_val).simplify()
+        diff = (h_ssh - h_tb).simplify()
+        assert all(abs(c) < 1e-12 for c, _ in diff.terms)
+        assert np.allclose(h_ssh.to_matrix(), h_tb.to_matrix(), atol=1e-12)
+
+    # 2. For n = 4, single-particle eigenvalues are [ ±w ± √(w² + 4v²) ] / 2,
+    # and many-body energies are all fillings of its eigenvalues.
+    n = 4
+    for v_val, w_val in [(1.0, 0.0), (0.0, 1.0), (1.0, 1.0)]:
+        m_sp = np.zeros((n, n), dtype=float)
+        for i in range(n - 1):
+            hop = v_val if (i % 2 == 0) else w_val
+            m_sp[i, i + 1] = -hop
+            m_sp[i + 1, i] = -hop
+
+        sp_evals, sp_evecs = np.linalg.eigh(m_sp)
+        rad = np.sqrt(w_val**2 + 4.0 * v_val**2)
+        expected_sp = np.sort(
+            [
+                (-w_val - rad) / 2.0,
+                (w_val - rad) / 2.0,
+                (-w_val + rad) / 2.0,
+                (w_val + rad) / 2.0,
+            ]
+        )
+        assert np.allclose(sp_evals, expected_sp, atol=1e-12)
+
+        if (v_val, w_val) == (0.0, 1.0):
+            # Single-particle energies are -1, 0, 0, +1, and the two zero eigenvectors are the end sites
+            assert np.allclose(sp_evals, [-1.0, 0.0, 0.0, 1.0], atol=1e-12)
+            zero_cols = [k for k in range(n) if abs(sp_evals[k]) < 1e-12]
+            assert len(zero_cols) == 2
+            # Zero-mode subspace has support strictly on the end sites (0 and 3), zero on interior (1 and 2)
+            for k in zero_cols:
+                vec = sp_evecs[:, k]
+                assert np.isclose(abs(vec[1]), 0.0, atol=1e-12)
+                assert np.isclose(abs(vec[2]), 0.0, atol=1e-12)
+                assert np.isclose(abs(vec[0]) ** 2 + abs(vec[3]) ** 2, 1.0, atol=1e-12)
+
+        # Many-body energies are all fillings of sp_evals
+        fillings = np.sort(
+            [
+                sum(occ[k] * sp_evals[k] for k in range(n))
+                for occ in itertools.product([0, 1], repeat=n)
+            ]
+        )
+        assert np.allclose(spectrum(ssh_chain(n, v=v_val, w=w_val)), fillings, atol=1e-10)
+
+
 
 
