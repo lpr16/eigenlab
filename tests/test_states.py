@@ -13,6 +13,7 @@ from eigenlab.states import (
     concurrence,
     density,
     entanglement_entropy,
+    entanglement_of_formation,
     ghz,
     negativity,
     partial_trace,
@@ -230,3 +231,20 @@ def test_negativity():
             assert val == 0.0
         else:
             assert np.isclose(val, expected, atol=1e-12)
+
+
+def test_entanglement_of_formation():
+    # Phase 10: Entanglement of formation
+    for kind in ["phi+", "phi-", "psi+", "psi-"]:
+        assert np.isclose(entanglement_of_formation(bell(kind)), 1.0, atol=1e-12)
+
+    assert entanglement_of_formation(basis(0, 2)) == 0.0
+    assert entanglement_of_formation(np.kron(PLUS, ZERO)) == 0.0
+
+    psi_minus_dm = density(bell("psi-"))
+    i4 = np.eye(4, dtype=complex) / 4.0
+    werner_p1 = 1.0 * psi_minus_dm + 0.0 * i4
+    werner_p13 = (1.0 / 3.0) * psi_minus_dm + (2.0 / 3.0) * i4
+
+    assert np.isclose(entanglement_of_formation(werner_p1), 1.0, atol=1e-12)
+    assert entanglement_of_formation(werner_p13) == 0.0

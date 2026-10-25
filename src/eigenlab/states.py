@@ -244,6 +244,18 @@ def negativity(state: np.ndarray) -> float:
     return val
 
 
+def entanglement_of_formation(state: np.ndarray) -> float:
+    """Entanglement of formation in bits of a two-qubit state from its concurrence C."""
+    c = concurrence(state)
+    x = 0.5 * (1.0 + np.sqrt(max(0.0, 1.0 - c * c)))
+    if x <= 1e-15 or x >= 1.0 - 1e-15:
+        return 0.0
+    val = float(-x * np.log2(x) - (1.0 - x) * np.log2(1.0 - x))
+    if abs(val) < 1e-14:
+        return 0.0
+    return val
+
+
 def probabilities(state: np.ndarray) -> np.ndarray:
     ket = np.asarray(state, dtype=complex).reshape(-1)
     norm = np.linalg.norm(ket)
