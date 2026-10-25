@@ -21,6 +21,7 @@ from eigenlab.states import (
     purify,
     purity,
     schmidt_spectrum,
+    shannon_entropy,
     w_state,
 )
 
@@ -248,3 +249,10 @@ def test_entanglement_of_formation():
 
     assert np.isclose(entanglement_of_formation(werner_p1), 1.0, atol=1e-12)
     assert entanglement_of_formation(werner_p13) == 0.0
+
+
+def test_shannon_entropy():
+    # Phase 13: Shannon entropy
+    assert shannon_entropy(basis(0, 1)) == 0.0
+    assert np.isclose(shannon_entropy(bell("phi+")), 1.0, atol=1e-12)
+    assert np.isclose(shannon_entropy(w_state()), np.log2(3.0), atol=1e-12)

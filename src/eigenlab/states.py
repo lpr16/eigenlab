@@ -265,3 +265,13 @@ def probabilities(state: np.ndarray) -> np.ndarray:
     if norm == 0:
         raise ValueError("state has zero norm")
     return np.abs(ket / norm) ** 2
+
+
+def shannon_entropy(state: np.ndarray) -> float:
+    """Shannon entropy in bits of a computational-basis measurement on `state`."""
+    probs = probabilities(state)
+    probs = probs[probs > 1e-15]
+    ent = float(-np.sum(probs * np.log2(probs)))
+    if abs(ent) < 1e-14:
+        return 0.0
+    return ent
