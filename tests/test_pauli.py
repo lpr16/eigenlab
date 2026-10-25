@@ -8,12 +8,13 @@ from eigenlab.pauli import (
     conjugate_clifford,
     conjugate_pauli,
     expectation,
+    expectation_label,
     pauli,
     pauli_anti,
     pauli_comm,
     pauli_mult,
 )
-from eigenlab.states import ONE, PLUS, ZERO, basis
+from eigenlab.states import ONE, PLUS, ZERO, basis, bell
 
 
 def test_pauli_algebra():
@@ -200,3 +201,21 @@ def test_conjugate_clifford():
                 expected = u_2q @ p_mat @ u_2q.conj().T
                 phase, out_lbl = conjugate_clifford(lbl, gate_name, q)
                 assert np.allclose(phase * pauli(out_lbl), expected, atol=1e-12)
+
+
+def test_stabilizer_expectations():
+    # Phase 5: Stabilizer expectations via expectation_label
+    phi_plus = bell("phi+")
+    assert np.isclose(expectation_label(phi_plus, "XX"), 1.0, atol=1e-12)
+    assert np.isclose(expectation_label(phi_plus, "ZZ"), 1.0, atol=1e-12)
+    assert np.isclose(expectation_label(phi_plus, "YY"), -1.0, atol=1e-12)
+
+    psi_minus = bell("psi-")
+    assert np.isclose(expectation_label(psi_minus, "XX"), -1.0, atol=1e-12)
+    assert np.isclose(expectation_label(psi_minus, "YY"), -1.0, atol=1e-12)
+    assert np.isclose(expectation_label(psi_minus, "ZZ"), -1.0, atol=1e-12)
+
+    ket_00 = basis(0, 2)
+    assert np.isclose(expectation_label(ket_00, "ZI"), 1.0, atol=1e-12)
+    assert np.isclose(expectation_label(ket_00, "IZ"), 1.0, atol=1e-12)
+    assert np.isclose(expectation_label(ket_00, "XI"), 0.0, atol=1e-12)

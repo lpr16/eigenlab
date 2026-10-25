@@ -151,6 +151,22 @@ def apply_pauli(label: str, ket: np.ndarray) -> np.ndarray:
     return out
 
 
+def expectation_label(state: np.ndarray | str, label: str | np.ndarray) -> float:
+    """⟨ψ|P|ψ⟩ for a Pauli string label P evaluated via apply_pauli."""
+    if isinstance(state, str) and not isinstance(label, str):
+        state, label = label, state
+    assert isinstance(label, str)
+    ket = np.asarray(state, dtype=complex).reshape(-1)
+    norm = np.linalg.norm(ket)
+    if norm == 0:
+        raise ValueError("state has zero norm")
+    ket = ket / norm
+    value = np.vdot(ket, apply_pauli(label, ket))
+    if abs(value.imag) > 1e-8:
+        raise ValueError("expectation of a non-Hermitian operator")
+    return float(value.real)
+
+
 def expectation(operator: np.ndarray | Any, state: np.ndarray | str) -> float:
     """⟨ψ|A|ψ⟩. Imaginary part must be numerical noise."""
     if isinstance(state, str) and not isinstance(operator, str):
