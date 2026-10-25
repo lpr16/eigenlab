@@ -183,6 +183,28 @@ def pauli_probabilities(state: np.ndarray, label: str) -> tuple[float, float]:
     return p_plus, p_minus
 
 
+def post_measure(state: np.ndarray, label: str, outcome: int) -> np.ndarray:
+    """Post-measurement ket after obtaining `outcome` in {+1, -1} for Pauli `label`."""
+    if outcome not in (1, -1):
+        raise ValueError("outcome must be +1 or -1")
+    ket = np.asarray(state, dtype=complex).reshape(-1)
+    norm_in = np.linalg.norm(ket)
+    if norm_in == 0:
+        raise ValueError("state has zero norm")
+    ket = ket / norm_in
+    proj = 0.5 * (ket + float(outcome) * apply_pauli(label, ket))
+    norm_out = np.linalg.norm(proj)
+    if norm_out < 1e-12:
+        raise ValueError("outcome has probability 0")
+    proj = proj / norm_out
+    for amp in proj:
+        if abs(amp) > 1e-12:
+            phase = amp / abs(amp)
+            proj = proj * np.conj(phase)
+            break
+    return proj
+
+
 def expectation(operator: np.ndarray | Any, state: np.ndarray | str) -> float:
     """⟨ψ|A|ψ⟩. Imaginary part must be numerical noise."""
     if isinstance(state, str) and not isinstance(operator, str):

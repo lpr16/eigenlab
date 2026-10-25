@@ -256,7 +256,7 @@ def entanglement_of_formation(state: np.ndarray) -> float:
     return val
 
 
-from eigenlab.pauli import pauli_probabilities
+from eigenlab.pauli import pauli_probabilities, post_measure
 
 
 def probabilities(state: np.ndarray) -> np.ndarray:

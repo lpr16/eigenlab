@@ -14,6 +14,7 @@ from eigenlab.pauli import (
     pauli_comm,
     pauli_mult,
     pauli_probabilities,
+    post_measure,
 )
 from eigenlab.states import ONE, PLUS, ZERO, basis, bell
 
@@ -239,3 +240,23 @@ def test_pauli_probabilities():
     p_z_one = pauli_probabilities(basis(1, 1), "Z")
     assert np.allclose(p_z_one, (0.0, 1.0), atol=1e-12)
     assert np.isclose(sum(p_z_one), 1.0, atol=1e-12)
+
+
+def test_post_measure():
+    # Phase 12: Post-measurement state
+    import pytest
+
+    out_p1 = post_measure(PLUS, "Z", +1)
+    assert np.allclose(out_p1, basis(0, 1), atol=1e-12)
+
+    out_m1 = post_measure(PLUS, "Z", -1)
+    assert np.allclose(out_m1, basis(1, 1), atol=1e-12)
+
+    # First nonzero amplitude is real and positive even for phased state
+    phased = np.exp(1j * 0.7) * PLUS
+    out_phased = post_measure(phased, "Z", -1)
+    assert np.allclose(out_phased, basis(1, 1), atol=1e-12)
+
+    # Outcome with probability 0 raises ValueError
+    with pytest.raises(ValueError, match="probability 0"):
+        post_measure(basis(0, 1), "Z", -1)
