@@ -114,3 +114,31 @@ def test_amplitude_damping_closed_form():
 
         p = 1.0 - np.exp(-gamma * t)
         assert np.allclose(rho_t, amplitude_damping(rho0, p), atol=1e-12)
+
+
+def test_choi_matrix():
+    # Phase 43: Choi matrix
+    # Identity: Σ_ij |i⟩⟨j| ⊗ |i⟩⟨j| = |Φ⟩⟨Φ| with |Φ⟩ = |00⟩ + |11⟩, ⟨Φ|Φ⟩ = 2: eigenvalues 2, 0, 0, 0.
+    # Transpose: Σ_ij |i⟩⟨j| ⊗ |j⟩⟨i| is the swap. Its eigenvalues are +1 on the symmetric
+    # states |00⟩, |11⟩, |01⟩ + |10⟩ and −1 on |01⟩ − |10⟩, so the map is not completely positive.
+    from eigenlab.channels import amplitude_damping_kraus, choi
+
+    def output_trace(c: np.ndarray) -> np.ndarray:
+        # Tr over the output factor: Σ_ij |i⟩⟨j| Tr E(|i⟩⟨j|), which is I for a trace-preserving map.
+        return np.array([[np.trace(c[2 * i : 2 * i + 2, 2 * j : 2 * j + 2]) for j in range(2)] for i in range(2)])
+
+    c_id = choi([np.eye(2)])
+    phi = np.array([1.0, 0.0, 0.0, 1.0], dtype=complex)
+    assert np.allclose(c_id, np.outer(phi, phi), atol=1e-12)
+    assert np.allclose(np.sort(np.linalg.eigvalsh(c_id)), [0.0, 0.0, 0.0, 2.0], atol=1e-12)
+    assert np.allclose(output_trace(c_id), np.eye(2), atol=1e-12)
+
+    c_ad = choi(amplitude_damping_kraus(0.5))
+    assert np.allclose(c_ad, c_ad.conj().T, atol=1e-12)
+    assert np.min(np.linalg.eigvalsh(c_ad)) > -1e-12
+    assert np.allclose(output_trace(c_ad), np.eye(2), atol=1e-12)
+
+    c_t = choi(lambda rho: rho.T)
+    swap = np.array([[1, 0, 0, 0], [0, 0, 1, 0], [0, 1, 0, 0], [0, 0, 0, 1]], dtype=complex)
+    assert np.allclose(c_t, swap, atol=1e-12)
+    assert np.allclose(np.sort(np.linalg.eigvalsh(c_t)), [-1.0, 1.0, 1.0, 1.0], atol=1e-12)

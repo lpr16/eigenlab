@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Sequence
+from typing import Callable, Sequence
 
 import numpy as np
 
@@ -79,4 +79,29 @@ def amplitude_damping_evolve(rho: np.ndarray, gamma: float, time: float) -> np.n
     out[0, 0] = mat[0, 0] + mat[1, 1] * (1.0 - decay)
     out[0, 1] = mat[0, 1] * np.sqrt(decay)
     out[1, 0] = mat[1, 0] * np.sqrt(decay)
+    return out
+
+
+def choi(
+    kraus_ops: Sequence[np.ndarray] | Callable[[np.ndarray], np.ndarray],
+) -> np.ndarray:
+    """Choi matrix Σ_ij |i⟩⟨j| ⊗ E(|i⟩⟨j|) of a one-qubit map.
+
+    `kraus_ops` is a list of Kraus operators, or a callable ρ ↦ E(ρ) for a linear map
+    without a Kraus form, such as the transpose.
+    """
+    if callable(kraus_ops):
+        channel = kraus_ops
+    else:
+        ops = list(kraus_ops)
+
+        def channel(rho: np.ndarray) -> np.ndarray:
+            return apply_kraus(rho, ops)
+
+    out = np.zeros((4, 4), dtype=complex)
+    for i in range(2):
+        for j in range(2):
+            unit = np.zeros((2, 2), dtype=complex)
+            unit[i, j] = 1.0
+            out += np.kron(unit, np.asarray(channel(unit), dtype=complex))
     return out
