@@ -101,3 +101,49 @@ def test_hellmann_feynman_hubbard_dimer():
         exp_double_occ = double_occ_op.expectation(singlet_vec)
         assert np.isclose(exp_double_occ, dE_dU_exact, atol=1e-8)
 
+
+
+def test_hellmann_feynman_kitaev_chemical_potential():
+    # Phase 49: Hellmann–Feynman on the Kitaev chemical potential
+    # H = Σ_i −μ (n_i − 1/2) + (μ-independent hopping and pairing), so ∂H/∂μ = −Σ_i (n_i − 1/2).
+    # At t = 0, Δ = 0 every computational basis state is an eigenvector with
+    #   E = −μ (N − n/2),  dE/dμ = ⟨∂H/∂μ⟩ = n/2 − N.
+    # Vacuum (N = 0): E = μ n/2, derivative n/2.
+    # One particle (N = 1), n = 2: E = 0 for every μ, derivative n/2 − 1 = 0.
+    from eigenlab.fermions import kitaev_chain
+    from eigenlab.hamiltonian import Hamiltonian
+
+    n = 2
+    mu = 0.3
+    step = 1e-4
+    identity = Hamiltonian([(1.0, "I" * n)])
+    dh_dmu = Hamiltonian([])
+    for i in range(n):
+        dh_dmu = dh_dmu - (number_operator(i, n) - 0.5 * identity)
+    dh_dmu = dh_dmu.simplify()
+
+    # H is linear in μ, so the term-list difference is ∂H/∂μ exactly.
+    diff = (
+        (kitaev_chain(n, t=0.7, delta=1.3, mu=mu + step) - kitaev_chain(n, t=0.7, delta=1.3, mu=mu - step))
+        * (1.0 / (2.0 * step))
+        - dh_dmu
+    ).simplify()
+    assert all(abs(c) < 1e-8 for c, _ in diff.terms)
+
+    def energy(state: np.ndarray, m: float) -> float:
+        h = kitaev_chain(n, t=0.0, delta=0.0, mu=m).to_matrix()
+        value = np.vdot(state, h @ state).real
+        assert np.allclose(h @ state, value * state, atol=1e-12)
+        return float(value)
+
+    vac = basis(0, n)
+    assert np.isclose(energy(vac, mu), mu * n / 2.0, atol=1e-12)
+    assert np.isclose(dh_dmu.expectation(vac), n / 2.0, atol=1e-12)
+    central = (energy(vac, mu + step) - energy(vac, mu - step)) / (2.0 * step)
+    assert np.isclose(central, n / 2.0, atol=1e-8)
+
+    for one in [basis(0b10, n), basis(0b01, n)]:
+        assert np.isclose(total_number_operator(n).expectation(one), 1.0, atol=1e-12)
+        assert np.isclose(dh_dmu.expectation(one), n / 2.0 - 1.0, atol=1e-12)
+        for m in [-1.0, 0.0, mu, 2.5]:
+            assert np.isclose(energy(one, m), 0.0, atol=1e-12)
