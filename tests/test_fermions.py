@@ -830,3 +830,43 @@ def test_tight_binding_ring_bravyi_kitaev():
         default = tight_binding_ring(n, t=1.0)
         explicit = tight_binding_ring(n, t=1.0, mapping="jordan_wigner")
         assert default.terms == explicit.terms
+
+
+def test_one_particle_rdm_bravyi_kitaev():
+    # Phase 32: One-particle RDM in either encoding
+    # γ_pq = ⟨a†_p a_q⟩ is a property of the fermion state, not of the qubit encoding,
+    # as long as each vector is read with the operators of its own encoding.
+    from eigenlab.fermions import (
+        bravyi_kitaev_adag,
+        natural_occupations,
+        one_particle_rdm,
+    )
+    from eigenlab.hamiltonian import eigensystem
+    from eigenlab.molecular import h2_sto3g_hamiltonian
+
+    n = 4
+    vac = basis(0, n)
+
+    # The Bravyi–Kitaev vacuum is still basis(0, n): every natural occupation is 0.
+    gamma_vac = one_particle_rdm(vac, n, mapping="bravyi_kitaev")
+    assert np.allclose(gamma_vac, 0.0, atol=1e-12)
+    assert np.allclose(natural_occupations(vac, n, mapping="bravyi_kitaev"), 0.0, atol=1e-12)
+
+    # One electron in orbital 0: Tr γ = 1, and the largest occupation is 1.
+    one = bravyi_kitaev_adag(0, n).to_matrix() @ vac
+    gamma_one = one_particle_rdm(one, n, mapping="bravyi_kitaev")
+    assert np.isclose(np.trace(gamma_one), 1.0, atol=1e-12)
+    occ_one = natural_occupations(one, n, mapping="bravyi_kitaev")
+    assert np.isclose(occ_one[0], 1.0, atol=1e-12)
+    assert np.allclose(occ_one[1:], 0.0, atol=1e-12)
+
+    # H₂ STO-3G at R = 1.401 a.u.: each ground vector lives in the basis of its own encoding.
+    _, v_jw = eigensystem(h2_sto3g_hamiltonian(1.401))
+    _, v_bk = eigensystem(h2_sto3g_hamiltonian(1.401, mapping="bravyi_kitaev"))
+    occ_jw = natural_occupations(v_jw[:, 0], n)
+    occ_bk = natural_occupations(v_bk[:, 0], n, mapping="bravyi_kitaev")
+    assert np.allclose(occ_bk, occ_jw, atol=1e-8)
+    assert np.isclose(np.sum(occ_bk), 2.0, atol=1e-8)
+
+    # The two ground vectors are not the same vector.
+    assert not np.isclose(abs(np.vdot(v_jw[:, 0], v_bk[:, 0])), 1.0, atol=1e-6)

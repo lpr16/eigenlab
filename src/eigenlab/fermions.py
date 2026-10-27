@@ -402,12 +402,18 @@ tag_sector = tag_sectors
 sector = tag_sectors
 
 
-def one_particle_rdm(state: np.ndarray, n: int) -> np.ndarray:
-    """One-particle reduced density matrix γ_{pq} = ⟨a†_p a_q⟩ for n orbitals in Jordan-Wigner basis."""
+def one_particle_rdm(
+    state: np.ndarray, n: int, mapping: str = "jordan_wigner"
+) -> np.ndarray:
+    """One-particle reduced density matrix γ_{pq} = ⟨a†_p a_q⟩ for n orbitals.
+
+    `state` is read in the qubit basis of `mapping`, Jordan-Wigner by default.
+    """
     arr = np.asarray(state, dtype=complex)
     dim = 1 << n
-    a_mats = [jordan_wigner_a(p, n).to_matrix() for p in range(n)]
-    adag_mats = [jordan_wigner_adag(p, n).to_matrix() for p in range(n)]
+    a_fn, adag_fn = _ladder_operators(mapping)
+    a_mats = [a_fn(p, n).to_matrix() for p in range(n)]
+    adag_mats = [adag_fn(p, n).to_matrix() for p in range(n)]
 
     gamma = np.zeros((n, n), dtype=complex)
     if arr.ndim == 1 or (arr.ndim == 2 and (arr.shape[0] == 1 or arr.shape[1] == 1)):
@@ -438,19 +444,19 @@ def one_particle_rdm(state: np.ndarray, n: int) -> np.ndarray:
 
 
 def natural_occupations(
-    state_or_rdm: np.ndarray, n: int | None = None
+    state_or_rdm: np.ndarray, n: int | None = None, mapping: str = "jordan_wigner"
 ) -> np.ndarray:
     """Natural orbital occupation numbers (eigenvalues of one-particle RDM sorted descending)."""
     arr = np.asarray(state_or_rdm, dtype=complex)
     if n is not None and (arr.ndim == 1 or (arr.ndim == 2 and arr.shape[0] == (1 << n))):
-        rdm = one_particle_rdm(arr, n)
+        rdm = one_particle_rdm(arr, n, mapping=mapping)
     elif arr.ndim == 2 and arr.shape[0] == arr.shape[1]:
         if n is not None and arr.shape[0] != n:
-            rdm = one_particle_rdm(arr, n)
+            rdm = one_particle_rdm(arr, n, mapping=mapping)
         else:
             rdm = arr
     elif n is not None:
-        rdm = one_particle_rdm(arr, n)
+        rdm = one_particle_rdm(arr, n, mapping=mapping)
     else:
         raise ValueError("Must provide n or a square one-particle RDM matrix")
     evals = np.linalg.eigvalsh(rdm)
