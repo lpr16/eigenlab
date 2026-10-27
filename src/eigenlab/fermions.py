@@ -139,8 +139,13 @@ def number_operator(p: int, n: int, mapping: str = "jordan_wigner") -> Hamiltoni
         raise ValueError(f"Unknown mapping: {mapping}. Must be 'jordan_wigner' or 'bravyi_kitaev'")
 
 
-def total_number_operator(n: int) -> Hamiltonian:
+def total_number_operator(n: int, mapping: str = "jordan_wigner") -> Hamiltonian:
     """Total number operator N = ∑_{p=0}^{n-1} a†_p a_p."""
+    if mapping.lower() not in ("jordan_wigner", "jw"):
+        N = Hamiltonian([])
+        for p in range(n):
+            N = N + number_operator(p, n, mapping=mapping)
+        return N.simplify()
     terms: list[tuple[complex | float, str]] = [(0.5 * n, "I" * n)]
     for p in range(n):
         label_z = "I" * p + "Z" + "I" * (n - 1 - p)
@@ -268,12 +273,20 @@ def kitaev_bogoliubov_spectrum(
     return np.sort(np.array(energies, dtype=float))
 
 
-def total_spin_z(n_spatial: int) -> Hamiltonian:
+def total_spin_z(n_spatial: int, mapping: str = "jordan_wigner") -> Hamiltonian:
     """Total spin projection S_z = (1/2) ∑_i (n_{i↑} - n_{i↓}).
 
     Spin-orbitals are interleaved as: orbital 2*i is spin-up, 2*i + 1 is spin-down.
     """
     n_orbitals = 2 * n_spatial
+    if mapping.lower() not in ("jordan_wigner", "jw"):
+        s_z = Hamiltonian([])
+        for i in range(n_spatial):
+            s_z = s_z + 0.5 * (
+                number_operator(2 * i, n_orbitals, mapping=mapping)
+                - number_operator(2 * i + 1, n_orbitals, mapping=mapping)
+            )
+        return s_z.simplify()
     terms: list[tuple[complex | float, str]] = []
     # n_p = (I - Z_p)/2
     # S_z = (1/2) ∑ ( (I - Z_{2i})/2 - (I - Z_{2i+1})/2 ) = (1/4) ∑ (-Z_{2i} + Z_{2i+1})
@@ -365,15 +378,17 @@ def tag_sectors(
     state: np.ndarray,
     n_spatial: int,
     tol: float = 1e-8,
+    mapping: str = "jordan_wigner",
 ) -> tuple[int, float] | list[tuple[int, float]]:
     """Tag an eigenvector or collection of eigenvectors by ⟨N⟩ and ⟨S_z⟩.
 
+    `state` is read in the qubit basis of `mapping`, Jordan-Wigner by default.
     Rejects any state whose ⟨N⟩ is not within `tol` (default 1e-8) of an integer.
     """
     arr = np.asarray(state, dtype=complex)
     n_orbitals = 2 * n_spatial
-    ntot = total_number_operator(n_orbitals)
-    sztot = total_spin_z(n_spatial)
+    ntot = total_number_operator(n_orbitals, mapping=mapping)
+    sztot = total_spin_z(n_spatial, mapping=mapping)
 
     def _tag_single(vec: np.ndarray) -> tuple[int, float]:
         norm = np.linalg.norm(vec)

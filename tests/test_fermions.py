@@ -870,3 +870,38 @@ def test_one_particle_rdm_bravyi_kitaev():
 
     # The two ground vectors are not the same vector.
     assert not np.isclose(abs(np.vdot(v_jw[:, 0], v_bk[:, 0])), 1.0, atol=1e-6)
+
+
+def test_tag_sectors_bravyi_kitaev():
+    # Phase 33: Sector tags in either encoding
+    # a†_1 a†_0 |0⟩ fills 0↑ and 0↓: (N, S_z) = (2, 0) in the fermion picture.
+    # In Bravyi–Kitaev that is occupation x = (1, 1, 0, 0), stored as
+    #   β_0 = x_0 = 1, β_1 = x_0 + x_1 = 0, β_2 = x_2 = 0, β_3 = x_0 + x_1 + x_2 + x_3 = 0,
+    # the qubit ket |1000⟩. Read as Jordan–Wigner, that ket has one particle, in 0↑.
+    import pytest
+    from eigenlab.fermions import (
+        bravyi_kitaev_adag,
+        tag_sectors,
+        total_number_operator,
+        total_spin_z,
+    )
+
+    n = 4
+    vac = basis(0, n)
+    state = bravyi_kitaev_adag(1, n).to_matrix() @ (bravyi_kitaev_adag(0, n).to_matrix() @ vac)
+    assert np.isclose(abs(state[0b1000]), 1.0, atol=1e-12)
+
+    assert tag_sectors(state, 2, mapping="bravyi_kitaev") == (2, 0.0)
+    jw_tag = tag_sectors(state, 2)
+    assert jw_tag != (2, 0.0)
+    assert jw_tag == (1, 0.5)
+
+    # The default stays Jordan–Wigner, with the same term lists as before.
+    assert tag_sectors(state, 2, mapping="jordan_wigner") == jw_tag
+    assert total_number_operator(n).terms == total_number_operator(n, mapping="jordan_wigner").terms
+    assert total_spin_z(2).terms == total_spin_z(2, mapping="jordan_wigner").terms
+
+    # A non-integer ⟨N⟩ is rejected in Bravyi–Kitaev as well.
+    half = (vac + bravyi_kitaev_adag(0, n).to_matrix() @ vac) / np.sqrt(2.0)
+    with pytest.raises(ValueError):
+        tag_sectors(half, 2, mapping="bravyi_kitaev")
