@@ -11,11 +11,22 @@ PLUS_I = np.array([1, 1j], dtype=complex) / np.sqrt(2)
 
 
 def bloch(state: np.ndarray) -> np.ndarray:
-    """Bloch vector (r_x, r_y, r_z) of a one-qubit ket.
+    """Bloch vector (r_x, r_y, r_z) of a one-qubit ket or 2 x 2 density matrix.
 
-    Pure states lie on the unit sphere S^2. Multi-qubit states are rejected.
+    Pure states lie on the unit sphere S^2, mixed states inside it. Multi-qubit states are rejected.
     """
-    ket = np.asarray(state, dtype=complex).reshape(-1)
+    arr = np.asarray(state, dtype=complex)
+    if arr.shape == (2, 2):
+        tr = np.trace(arr)
+        if abs(tr) == 0:
+            raise ValueError("density matrix has zero trace")
+        rho = arr / tr
+        # r = (Tr ρX, Tr ρY, Tr ρZ) = (2 Re ρ₁₀, 2 Im ρ₁₀, ρ₀₀ − ρ₁₁)
+        return np.array(
+            [2.0 * rho[1, 0].real, 2.0 * rho[1, 0].imag, (rho[0, 0] - rho[1, 1]).real],
+            dtype=float,
+        )
+    ket = arr.reshape(-1)
     if ket.size != 2:
         raise ValueError("state must be a one-qubit ket")
     norm = np.linalg.norm(ket)

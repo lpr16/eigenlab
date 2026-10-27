@@ -42,3 +42,13 @@ def amplitude_damping_kraus(p: float) -> list[np.ndarray]:
 def amplitude_damping(rho: np.ndarray, p: float) -> np.ndarray:
     """One-qubit amplitude damping: |1⟩ decays to |0⟩ with probability p."""
     return apply_kraus(_one_qubit_rho(rho), amplitude_damping_kraus(p))
+
+
+def depolarize(rho: np.ndarray, p: float) -> np.ndarray:
+    """One-qubit depolarizing channel (1−p) ρ + (p/3) (XρX + YρY + ZρZ), 0 ≤ p ≤ 1."""
+    from eigenlab.pauli import X, Y, Z
+
+    if not 0.0 <= p <= 1.0:
+        raise ValueError("p must be in [0, 1]")
+    mat = _one_qubit_rho(rho)
+    return (1.0 - p) * mat + (p / 3.0) * (X @ mat @ X + Y @ mat @ Y + Z @ mat @ Z)
