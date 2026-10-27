@@ -215,3 +215,27 @@ def test_spin_echo():
     free = evolve(h, PLUS, 2.0 * tau)
     assert np.isclose(expectation(X, free), np.cos(omega * 2.0 * tau), atol=1e-12)
     assert not np.isclose(expectation(X, free), 1.0, atol=1e-3)
+
+
+def test_ehrenfest():
+    # Phase 36: Ehrenfest
+    # H = (ω/2) Z on |+⟩: ⟨X(t)⟩ = cos(ωt), so d⟨X⟩/dt = −ω sin(ωt).
+    # Heisenberg: d⟨X⟩/dt = i ⟨[H, X]⟩ = i (ω/2) ⟨[Z, X]⟩ = i (ω/2) (2i) ⟨Y⟩ = −ω ⟨Y⟩.
+    from eigenlab.pauli import Z, expectation_label, pauli_comm
+
+    phase, label = pauli_comm("Z", "X")
+    assert label == "Y" and np.isclose(phase, 2j)
+
+    omega = 1.7
+    h = 0.5 * omega * Z
+    step = 1e-6
+    for t in [0.0, 0.3, 1.0]:
+        x_plus = expectation_label(evolve(h, PLUS, t + step), "X")
+        x_minus = expectation_label(evolve(h, PLUS, t - step), "X")
+        central = (x_plus - x_minus) / (2.0 * step)
+
+        closed_form = -omega * np.sin(omega * t)
+        commutator = complex(1j * (omega / 2.0) * phase * expectation_label(evolve(h, PLUS, t), label))
+        assert abs(commutator.imag) < 1e-12
+        assert abs(central - closed_form) < 1e-8
+        assert abs(central - commutator.real) < 1e-8
