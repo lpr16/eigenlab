@@ -114,6 +114,16 @@ bravyi_kitaev_annihilate = bravyi_kitaev_a
 bravyi_kitaev_create = bravyi_kitaev_adag
 
 
+def _ladder_operators(mapping: str):
+    """Return the (annihilation, creation) builders for `mapping`."""
+    map_norm = mapping.lower()
+    if map_norm in ("jordan_wigner", "jw"):
+        return jordan_wigner_a, jordan_wigner_adag
+    if map_norm in ("bravyi_kitaev", "bk"):
+        return bravyi_kitaev_a, bravyi_kitaev_adag
+    raise ValueError(f"Unknown mapping: {mapping}. Must be 'jordan_wigner' or 'bravyi_kitaev'")
+
+
 def number_operator(p: int, n: int, mapping: str = "jordan_wigner") -> Hamiltonian:
     """Number operator n_p = a†_p a_p."""
     if not 0 <= p < n:
@@ -178,15 +188,7 @@ def ssh_chain(
     """Open Su-Schrieffer-Heeger (SSH) chain on even `n >= 2` sites with alternating hoppings v, w."""
     if n < 2 or n % 2 != 0:
         raise ValueError("ssh_chain requires an even number of sites n >= 2")
-    map_norm = mapping.lower()
-    if map_norm in ("jordan_wigner", "jw"):
-        a_fn = jordan_wigner_a
-        adag_fn = jordan_wigner_adag
-    elif map_norm in ("bravyi_kitaev", "bk"):
-        a_fn = bravyi_kitaev_a
-        adag_fn = bravyi_kitaev_adag
-    else:
-        raise ValueError(f"Unknown mapping: {mapping}. Must be 'jordan_wigner' or 'bravyi_kitaev'")
+    a_fn, adag_fn = _ladder_operators(mapping)
 
     H = Hamiltonian([(0.0, "I" * n)])
     for i in range(n - 1):
@@ -194,6 +196,32 @@ def ssh_chain(
         if abs(amp) > 1e-15:
             hop = adag_fn(i, n) @ a_fn(i + 1, n) + adag_fn(i + 1, n) @ a_fn(i, n)
             H = H + (-amp * hop)
+    return H.simplify()
+
+
+def kitaev_chain(
+    n: int,
+    t: float = 1.0,
+    delta: float = 1.0,
+    mu: float = 0.0,
+    mapping: str = "jordan_wigner",
+) -> Hamiltonian:
+    """Open Kitaev chain on n spinless fermions.
+
+    H = Σ_i −μ (n_i − 1/2) + Σ_i [−t (a†_i a_{i+1} + h.c.) + Δ (a_i a_{i+1} + a†_{i+1} a†_i)]
+    """
+    if n < 2:
+        raise ValueError("kitaev_chain requires at least 2 sites")
+    a_fn, adag_fn = _ladder_operators(mapping)
+    identity = Hamiltonian([(1.0, "I" * n)])
+
+    H = Hamiltonian([(0.0, "I" * n)])
+    for i in range(n):
+        H = H + (-float(mu)) * (adag_fn(i, n) @ a_fn(i, n) - 0.5 * identity)
+    for i in range(n - 1):
+        hop = adag_fn(i, n) @ a_fn(i + 1, n) + adag_fn(i + 1, n) @ a_fn(i, n)
+        pair = a_fn(i, n) @ a_fn(i + 1, n) + adag_fn(i + 1, n) @ adag_fn(i, n)
+        H = H + (-float(t)) * hop + float(delta) * pair
     return H.simplify()
 
 
@@ -243,15 +271,7 @@ def hubbard_dimer(
 
     H = -t ∑_σ (c†_{0σ} c_{1σ} + h.c.) + U (n_{0↑} n_{0↓} + n_{1↑} n_{1↓})
     """
-    map_norm = mapping.lower()
-    if map_norm in ("jordan_wigner", "jw"):
-        a_fn = jordan_wigner_a
-        adag_fn = jordan_wigner_adag
-    elif map_norm in ("bravyi_kitaev", "bk"):
-        a_fn = bravyi_kitaev_a
-        adag_fn = bravyi_kitaev_adag
-    else:
-        raise ValueError(f"Unknown mapping: {mapping}. Must be 'jordan_wigner' or 'bravyi_kitaev'")
+    a_fn, adag_fn = _ladder_operators(mapping)
 
     h_hop_up = (
         adag_fn(0, 4) @ a_fn(2, 4)

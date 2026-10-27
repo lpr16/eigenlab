@@ -672,3 +672,36 @@ def test_ssh_chain():
 
 
 
+
+
+def test_kitaev_chain_two_sites():
+    # Phase 27: Kitaev chain, two sites by hand
+    from eigenlab.fermions import kitaev_chain, tight_binding_chain
+    from eigenlab.hamiltonian import spectrum
+
+    # At Δ = 0 and μ = 0 only the hopping is left, which is tight_binding_chain.
+    for n in [2, 3, 4]:
+        diff = (kitaev_chain(n, t=1.35, delta=0.0, mu=0.0) - tight_binding_chain(n, t=1.35)).simplify()
+        assert all(abs(c) < 1e-12 for c, _ in diff.terms)
+
+    # n = 2. Basis index = 2 x_0 + x_1, so |00⟩ = 0, |01⟩ = 1, |10⟩ = 2, |11⟩ = 3.
+    # Even parity (|00⟩, |11⟩):
+    #   −μ (n_0 − 1/2) − μ (n_1 − 1/2) is +μ on |00⟩ and −μ on |11⟩.
+    #   |11⟩ = a†_0 a†_1 |00⟩, and a_0 a_1 a†_0 a†_1 |00⟩ = −a_0 a†_0 a_1 a†_1 |00⟩ = −|00⟩,
+    #   so ⟨00| Δ a_0 a_1 |11⟩ = −Δ.
+    # Odd parity (|10⟩, |01⟩):
+    #   −μ (1 − 1/2) − μ (0 − 1/2) = 0 on both.
+    #   a_1 |01⟩ = Z_0 |00⟩ = |00⟩ and a†_0 |00⟩ = |10⟩, so ⟨10| −t a†_0 a_1 |01⟩ = −t.
+    for t, delta, mu in [(1.0, 0.0, 0.0), (1.0, 1.0, 0.0), (1.0, 1.0, 0.5)]:
+        even = np.array([[mu, -delta], [-delta, -mu]])
+        odd = np.array([[0.0, -t], [-t, 0.0]])
+        h = kitaev_chain(2, t=t, delta=delta, mu=mu).to_matrix()
+        assert np.allclose(h[np.ix_([0, 3], [0, 3])], even, atol=1e-12)
+        assert np.allclose(h[np.ix_([2, 1], [2, 1])], odd, atol=1e-12)
+        assert np.allclose(h[np.ix_([0, 3], [2, 1])], 0.0, atol=1e-12)
+
+        # Eigenvalues ±√(μ² + Δ²) and ±t.
+        r = np.sqrt(mu**2 + delta**2)
+        assert np.allclose(np.linalg.eigvalsh(even), [-r, r], atol=1e-12)
+        assert np.allclose(np.linalg.eigvalsh(odd), [-t, t], atol=1e-12)
+        assert np.allclose(spectrum(h), np.sort([-r, r, -t, t]), atol=1e-12)
