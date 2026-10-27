@@ -765,3 +765,49 @@ def test_tight_binding_ring():
 
         # The ring is the open chain plus one more bond, which tight_binding_chain does not have.
         assert not np.allclose(spectrum(tight_binding_chain(n, t=t)), fillings, atol=1e-8)
+
+
+def test_ring_closing_bond_is_a_jordan_wigner_string():
+    # Phase 30: The closing bond is a Jordan–Wigner string
+    # a†_0 = (X − iY)/2 on qubit 0, a_{n−1} = Z^{⊗(n−1)} (X + iY)/2 on qubit n−1.
+    # On qubit 0, (X − iY)/2 · Z = (X − iY)/2, so
+    #   a†_0 a_{n−1} = (X − iY)/2 ⊗ Z^{n−2} ⊗ (X + iY)/2
+    #   a†_{n−1} a_0 = (X + iY)/2 ⊗ Z^{n−2} ⊗ (X − iY)/2
+    # and the sum is (X Z^{n−2} X + Y Z^{n−2} Y) / 2: the cross terms ±i XY cancel.
+    from eigenlab.fermions import jordan_wigner_a, jordan_wigner_adag, tight_binding_ring
+    from eigenlab.hamiltonian import Hamiltonian, spectrum
+
+    def bond(i: int, j: int, n: int, t: float) -> Hamiltonian:
+        xx = ["I"] * n
+        yy = ["I"] * n
+        xx[i] = xx[j] = "X"
+        yy[i] = yy[j] = "Y"
+        return Hamiltonian([(-0.5 * t, "".join(xx)), (-0.5 * t, "".join(yy))])
+
+    def closing_string(n: int, t: float) -> Hamiltonian:
+        middle = "Z" * (n - 2)
+        return Hamiltonian([(-0.5 * t, "X" + middle + "X"), (-0.5 * t, "Y" + middle + "Y")])
+
+    t = 1.0
+
+    # The periodic spin sum, with i + 1 taken mod n, is not the fermion ring at n = 4.
+    n = 4
+    spin_ring = Hamiltonian([])
+    for i in range(n):
+        spin_ring = spin_ring + bond(i, (i + 1) % n, n, t)
+    assert not np.allclose(spectrum(spin_ring), spectrum(tight_binding_ring(n, t=t)), atol=1e-8)
+
+    for n in [3, 4, 5]:
+        # The closing string is −t (a†_{n−1} a_0 + a†_0 a_{n−1}).
+        fermion_closing = -t * (
+            jordan_wigner_adag(n - 1, n) @ jordan_wigner_a(0, n)
+            + jordan_wigner_adag(0, n) @ jordan_wigner_a(n - 1, n)
+        )
+        diff = (closing_string(n, t) - fermion_closing).simplify()
+        assert all(abs(c) < 1e-12 for c, _ in diff.terms)
+
+        # Ordinary XX + YY on the open links, the string on the closing link.
+        jw_ring = closing_string(n, t)
+        for i in range(n - 1):
+            jw_ring = jw_ring + bond(i, i + 1, n, t)
+        assert np.allclose(spectrum(jw_ring), spectrum(tight_binding_ring(n, t=t)), atol=1e-8)
