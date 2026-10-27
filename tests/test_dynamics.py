@@ -239,3 +239,27 @@ def test_ehrenfest():
         assert abs(commutator.imag) < 1e-12
         assert abs(central - closed_form) < 1e-8
         assert abs(central - commutator.real) < 1e-8
+
+
+def test_two_constant_pieces():
+    # Phase 37: Two constant pieces
+    # [ZI, IZ] = 0, so exp(−i(ZI + IZ)t) = exp(−i IZ t) exp(−i ZI t): composing evolve is exact.
+    # [ZI, XI] = 2i YI ≠ 0, so the composition misses the commutator at order t².
+    from eigenlab.hamiltonian import Hamiltonian
+
+    t = 0.4
+    psi = np.kron(PLUS, PLUS)
+
+    def ray_distance(a: np.ndarray, b: np.ndarray) -> float:
+        # min over φ of ‖a − e^{iφ} b‖ for unit kets
+        return float(np.sqrt(max(0.0, 2.0 - 2.0 * abs(np.vdot(a, b)))))
+
+    zi = Hamiltonian([(1.0, "ZI")])
+    iz = Hamiltonian([(1.0, "IZ")])
+    xi = Hamiltonian([(1.0, "XI")])
+
+    composed = evolve(iz, evolve(zi, psi, t), t)
+    assert np.allclose(composed, evolve(zi + iz, psi, t), atol=1e-12)
+
+    composed = evolve(xi, evolve(zi, psi, t), t)
+    assert ray_distance(composed, evolve(zi + xi, psi, t)) > 1e-3
