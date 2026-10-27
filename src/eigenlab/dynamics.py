@@ -168,3 +168,17 @@ def spin_echo(
     if pulse is None:
         pulse = "X" * (ket.size.bit_length() - 1)
     return evolve(H, apply_pauli(pulse, evolve(H, ket, tau)), tau)
+
+
+def yoshida_unitary(
+    H: Hamiltonian | Sequence[tuple[complex | float, str]],
+    dt: float,
+) -> np.ndarray:
+    """Fourth-order Yoshida product S4(Δt) = S2(θΔt) S2((1 − 2θ)Δt) S2(θΔt), θ = 1 / (2 − 2^{1/3}).
+
+    S2 is `strang_unitary`. The middle step (1 − 2θ)Δt is negative.
+    """
+    theta = 1.0 / (2.0 - 2.0 ** (1.0 / 3.0))
+    outer = strang_unitary(H, theta * float(dt))
+    middle = strang_unitary(H, (1.0 - 2.0 * theta) * float(dt))
+    return outer @ middle @ outer

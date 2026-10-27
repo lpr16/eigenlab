@@ -263,3 +263,34 @@ def test_two_constant_pieces():
 
     composed = evolve(xi, evolve(zi, psi, t), t)
     assert ray_distance(composed, evolve(zi + xi, psi, t)) > 1e-3
+
+
+def test_yoshida_fourth_order():
+    # Phase 38: Fourth-order product formula
+    # S2 is symmetric, so its error is odd in Δt: S2(Δt) = exp(−iHΔt + Δt³ E3 + O(Δt⁵)).
+    # With 2θ³ + (1 − 2θ)³ = 0, i.e. θ = 1 / (2 − 2^{1/3}), the Δt³ terms cancel in
+    # S2(θΔt) S2((1 − 2θ)Δt) S2(θΔt), leaving a one-step error O(Δt⁵): halving Δt cuts it by 32.
+    from eigenlab.dynamics import strang_unitary, unitary, yoshida_unitary
+    from eigenlab.hamiltonian import transverse_ising_terms
+
+    theta = 1.0 / (2.0 - 2.0 ** (1.0 / 3.0))
+    assert np.isclose(2.0 * theta**3 + (1.0 - 2.0 * theta) ** 3, 0.0, atol=1e-12)
+    assert 1.0 - 2.0 * theta < 0.0
+
+    # Two-site transverse Ising: [ZZ, XI] ≠ 0.
+    h = transverse_ising_terms(2, coupling=1.0, field=1.0)
+
+    # strang_unitary accepts a negative step: S2(−Δt) S2(Δt) = I.
+    assert np.allclose(strang_unitary(h, -0.3) @ strang_unitary(h, 0.3), np.eye(4), atol=1e-12)
+
+    dt_list = [0.1, 0.05, 0.025, 0.0125]
+    errors = [
+        float(np.linalg.norm(yoshida_unitary(h, dt) - unitary(h, dt), ord="fro"))
+        for dt in dt_list
+    ]
+
+    for i in range(len(dt_list) - 1):
+        assert np.isclose(errors[i] / errors[i + 1], 32.0, atol=1.5)
+
+    slope = float(np.polyfit(np.log(dt_list), np.log(errors), 1)[0])
+    assert np.isclose(slope, 5.0, atol=0.05)
