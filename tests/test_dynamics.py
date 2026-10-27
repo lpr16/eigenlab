@@ -188,3 +188,30 @@ def test_loschmidt_echo():
     assert np.isclose(loschmidt(h, PLUS, 0.0), 1.0, atol=1e-12)
     assert np.isclose(loschmidt(h, PLUS, np.pi / omega), 0.0, atol=1e-12)
     assert np.isclose(loschmidt(h, PLUS, 1.0), np.cos(omega * 1.0 / 2.0) ** 2, atol=1e-12)
+
+
+def test_spin_echo():
+    # Phase 35: Spin echo
+    # X Z X = −Z, so X exp(−iHτ) X = exp(+iHτ) for H = (ω/2) Z, and
+    #   exp(−iHτ) X exp(−iHτ) = X (X exp(−iHτ) X) exp(−iHτ) = X exp(+iHτ) exp(−iHτ) = X.
+    # X|+⟩ = |+⟩, so the echo returns |+⟩.
+    from eigenlab.dynamics import spin_echo, unitary
+    from eigenlab.pauli import X, Z
+
+    omega = 1.3
+    tau = 0.7
+    h = 0.5 * omega * Z
+
+    u = unitary(h, tau)
+    assert np.allclose(X @ u @ X, u.conj().T, atol=1e-12)
+    assert np.allclose(u @ X @ u, X, atol=1e-12)
+
+    final = spin_echo(h, PLUS, tau)
+    assert np.allclose(final, evolve(h, X @ evolve(h, PLUS, tau), tau), atol=1e-12)
+    assert np.isclose(abs(np.vdot(PLUS, final)), 1.0, atol=1e-12)
+    assert np.isclose(expectation(X, final), 1.0, atol=1e-12)
+
+    # Without the pulse, ⟨X(2τ)⟩ = cos(ω · 2τ), which is not 1.
+    free = evolve(h, PLUS, 2.0 * tau)
+    assert np.isclose(expectation(X, free), np.cos(omega * 2.0 * tau), atol=1e-12)
+    assert not np.isclose(expectation(X, free), 1.0, atol=1e-3)

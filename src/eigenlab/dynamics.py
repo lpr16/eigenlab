@@ -153,3 +153,18 @@ def loschmidt(
         raise ValueError("state has zero norm")
     ket = ket / norm
     return float(abs(np.vdot(ket, evolve(H, ket, time))) ** 2)
+
+
+def spin_echo(
+    H: np.ndarray | Hamiltonian,
+    state: np.ndarray,
+    tau: float,
+    pulse: str | None = None,
+) -> np.ndarray:
+    """Evolve for τ, apply the Pauli `pulse` (default X on every qubit), and evolve for τ again."""
+    from eigenlab.pauli import apply_pauli
+
+    ket = np.asarray(state, dtype=complex).reshape(-1)
+    if pulse is None:
+        pulse = "X" * (ket.size.bit_length() - 1)
+    return evolve(H, apply_pauli(pulse, evolve(H, ket, tau)), tau)
