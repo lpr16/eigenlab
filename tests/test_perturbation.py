@@ -63,3 +63,31 @@ def test_degenerate_perturbation():
             np.sort(np.concatenate([[singlet_energy], first_order])),
             atol=1e-12,
         )
+
+
+def test_avoided_crossing():
+    # Phase 46: Avoided crossing
+    # H(z) = [[z, δ], [δ, −z]] = z Z + δ X has eigenvalues ±√(z² + δ²), since (zZ + δX)² = (z² + δ²) I.
+    # The gap 2√(z² + δ²) is smallest at z = 0, where it is 2|δ|.
+    def h(z: float, delta: float) -> np.ndarray:
+        return np.array([[z, delta], [delta, -z]], dtype=float)
+
+    def gap(z: float, delta: float) -> float:
+        e = spectrum(h(z, delta))
+        return float(e[1] - e[0])
+
+    delta = 0.1
+    for z in [0.0, 1.0]:
+        r = np.sqrt(z**2 + delta**2)
+        assert np.allclose(spectrum(h(z, delta)), [-r, r], atol=1e-12)
+        assert np.isclose(gap(z, delta), 2.0 * r, atol=1e-12)
+    assert np.isclose(gap(0.0, delta), 2.0 * abs(delta), atol=1e-12)
+
+    zs = np.linspace(-1.0, 1.0, 201)
+    gaps = [gap(z, delta) for z in zs]
+    assert np.isclose(zs[int(np.argmin(gaps))], 0.0, atol=1e-12)
+    assert np.isclose(min(gaps), 2.0 * abs(delta), atol=1e-12)
+
+    # δ = 0: the levels cross, with eigenvalues z and −z.
+    for z in [-0.4, 0.0, 0.7]:
+        assert np.allclose(spectrum(h(z, 0.0)), np.sort([z, -z]), atol=1e-12)
