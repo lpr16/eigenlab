@@ -80,3 +80,37 @@ def test_dephasing_closed_form():
         rho_t = dephasing(rho0, gamma, t)
         rhs = gamma * (Z @ rho_t @ Z - rho_t)
         assert np.max(np.abs(central - rhs)) < 1e-8
+
+
+def test_amplitude_damping_closed_form():
+    # Phase 42: Amplitude damping, closed form
+    # σ₊σ₋ = |1⟩⟨1| and σ₋ρσ₊ = ρ₁₁ |0⟩⟨0|, so
+    #   dρ₁₁/dt = −γ ρ₁₁                  → ρ₁₁(t) = ρ₁₁(0) e^{−γt}
+    #   dρ₀₁/dt = −(γ/2) ρ₀₁              → ρ₀₁(t) = ρ₀₁(0) e^{−γt/2}
+    #   dρ₀₀/dt = +γ ρ₁₁                  → ρ₀₀(t) = ρ₀₀(0) + ρ₁₁(0) (1 − e^{−γt})
+    # The Kraus map of phase 39 gives (1−p) ρ₁₁ and √(1−p) ρ₀₁, the same with p = 1 − e^{−γt}.
+    from eigenlab.channels import amplitude_damping, amplitude_damping_evolve
+
+    sigma_minus = np.array([[0.0, 1.0], [0.0, 0.0]], dtype=complex)
+    sigma_plus = sigma_minus.conj().T
+
+    # On |1⟩⟨1| at γ = 1, t = ln 2: e^{−ln 2} = 1/2.
+    excited = density(ONE)
+    out = amplitude_damping_evolve(excited, 1.0, np.log(2.0))
+    assert np.isclose(out[1, 1], 0.5, atol=1e-12)
+    assert np.isclose(out[0, 0], 0.5, atol=1e-12)
+
+    gamma = 0.8
+    rho0 = _mixed_qubit()
+    step = 1e-6
+    for t in [0.0, 0.3, np.log(2.0)]:
+        central = (
+            amplitude_damping_evolve(rho0, gamma, t + step) - amplitude_damping_evolve(rho0, gamma, t - step)
+        ) / (2.0 * step)
+        rho_t = amplitude_damping_evolve(rho0, gamma, t)
+        n_op = sigma_plus @ sigma_minus
+        rhs = gamma * (sigma_minus @ rho_t @ sigma_plus - 0.5 * (n_op @ rho_t + rho_t @ n_op))
+        assert np.max(np.abs(central - rhs)) < 1e-8
+
+        p = 1.0 - np.exp(-gamma * t)
+        assert np.allclose(rho_t, amplitude_damping(rho0, p), atol=1e-12)

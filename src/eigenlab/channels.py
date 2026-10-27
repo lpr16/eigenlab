@@ -63,3 +63,20 @@ def dephasing(rho: np.ndarray, gamma: float, time: float) -> np.ndarray:
     out[0, 1] *= decay
     out[1, 0] *= decay
     return out
+
+
+def amplitude_damping_evolve(rho: np.ndarray, gamma: float, time: float) -> np.ndarray:
+    """Closed-form solution of dρ/dt = γ (σ₋ρσ₊ − ½ {σ₊σ₋, ρ}) with σ₋ = |0⟩⟨1|.
+
+    ρ₁₁(t) = ρ₁₁(0) e^{−γt}, ρ₀₁(t) = ρ₀₁(0) e^{−γt/2}, and ρ₀₀ takes the lost population.
+    """
+    if gamma < 0:
+        raise ValueError("gamma must be nonnegative")
+    mat = _one_qubit_rho(rho)
+    decay = np.exp(-float(gamma) * float(time))
+    out = np.empty_like(mat)
+    out[1, 1] = mat[1, 1] * decay
+    out[0, 0] = mat[0, 0] + mat[1, 1] * (1.0 - decay)
+    out[0, 1] = mat[0, 1] * np.sqrt(decay)
+    out[1, 0] = mat[1, 0] * np.sqrt(decay)
+    return out
