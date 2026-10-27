@@ -174,3 +174,17 @@ def test_noncommuting_trotter_and_strang_error():
     # Tight tolerance around 2 and 3
     assert np.isclose(slope_first, 2.0, atol=0.01)
     assert np.isclose(slope_strang, 3.0, atol=0.01)
+
+
+def test_loschmidt_echo():
+    # Phase 34: Loschmidt echo
+    # H = (ω/2) Z on |+⟩: |ψ(t)⟩ = (e^{−iωt/2}|0⟩ + e^{+iωt/2}|1⟩)/√2,
+    # ⟨+|ψ(t)⟩ = (e^{−iωt/2} + e^{+iωt/2}) / 2 = cos(ωt/2).
+    from eigenlab.dynamics import loschmidt
+    from eigenlab.pauli import Z
+
+    omega = 1.0
+    h = 0.5 * omega * Z
+    assert np.isclose(loschmidt(h, PLUS, 0.0), 1.0, atol=1e-12)
+    assert np.isclose(loschmidt(h, PLUS, np.pi / omega), 0.0, atol=1e-12)
+    assert np.isclose(loschmidt(h, PLUS, 1.0), np.cos(omega * 1.0 / 2.0) ** 2, atol=1e-12)

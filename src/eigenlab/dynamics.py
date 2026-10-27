@@ -139,3 +139,17 @@ def unitary(
     energies, V = eigensystem(H)
     phases = np.exp(-1j * energies * float(time))
     return V @ np.diag(phases) @ V.conj().T
+
+
+def loschmidt(
+    H: np.ndarray | Hamiltonian,
+    state: np.ndarray,
+    time: float,
+) -> float:
+    """Loschmidt echo |⟨ψ(0)|ψ(t)⟩|² with |ψ(t)⟩ from `evolve`."""
+    ket = np.asarray(state, dtype=complex).reshape(-1)
+    norm = np.linalg.norm(ket)
+    if norm == 0:
+        raise ValueError("state has zero norm")
+    ket = ket / norm
+    return float(abs(np.vdot(ket, evolve(H, ket, time))) ** 2)
