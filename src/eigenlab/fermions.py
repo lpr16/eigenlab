@@ -182,6 +182,17 @@ def tight_binding_chain(
         raise ValueError(f"Unknown mapping: {mapping}. Must be 'jordan_wigner' or 'bravyi_kitaev'")
 
 
+def tight_binding_ring(
+    n: int, t: float = 1.0, mapping: str = "jordan_wigner"
+) -> Hamiltonian:
+    """Periodic tight-binding ring: tight_binding_chain plus the closing bond −t (a†_{n−1} a_0 + h.c.)."""
+    if n < 3:
+        raise ValueError("tight binding ring requires at least 3 sites")
+    a_fn, adag_fn = _ladder_operators(mapping)
+    closing = adag_fn(n - 1, n) @ a_fn(0, n) + adag_fn(0, n) @ a_fn(n - 1, n)
+    return (tight_binding_chain(n, t=t, mapping=mapping) + (-float(t)) * closing).simplify()
+
+
 def ssh_chain(
     n: int, v: float = 1.0, w: float = 1.0, mapping: str = "jordan_wigner"
 ) -> Hamiltonian:

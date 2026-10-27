@@ -745,3 +745,23 @@ def test_kitaev_bogoliubov_spectrum():
                 # The blocks from phase 27: ±√(μ² + Δ²) and ±t.
                 r = np.sqrt(mu**2 + delta**2)
                 assert np.allclose(energies, np.sort([-r, r, -t, t]), atol=1e-8)
+
+
+def test_tight_binding_ring():
+    # Phase 29: Periodic tight binding
+    # Plane waves a_k = Σ_j e^{−2πi kj/n} a_j / √n diagonalize the ring:
+    # H = Σ_k ε_k a†_k a_k with ε_k = −2t cos(2π k / n), k = 0, …, n−1.
+    import itertools
+    from eigenlab.fermions import tight_binding_chain, tight_binding_ring
+    from eigenlab.hamiltonian import spectrum
+
+    t = 1.0
+    for n in [3, 4, 5]:
+        eps = -2.0 * t * np.cos(2.0 * np.pi * np.arange(n) / n)
+        fillings = np.sort(
+            [sum(occ[k] * eps[k] for k in range(n)) for occ in itertools.product([0, 1], repeat=n)]
+        )
+        assert np.allclose(spectrum(tight_binding_ring(n, t=t)), fillings, atol=1e-8)
+
+        # The ring is the open chain plus one more bond, which tight_binding_chain does not have.
+        assert not np.allclose(spectrum(tight_binding_chain(n, t=t)), fillings, atol=1e-8)
