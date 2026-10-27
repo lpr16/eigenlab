@@ -91,3 +91,40 @@ def test_avoided_crossing():
     # δ = 0: the levels cross, with eigenvalues z and −z.
     for z in [-0.4, 0.0, 0.7]:
         assert np.allclose(spectrum(h(z, 0.0)), np.sort([z, -z]), atol=1e-12)
+
+
+def test_discrete_berry_phase():
+    # Phase 47: Discrete Berry phase
+    # H(φ) = cos φ X + sin φ Y = [[0, e^{−iφ}], [e^{iφ}, 0]], eigenvalues ±1.
+    # By hand, the ground state is ψ(φ) = (|0⟩ − e^{iφ}|1⟩)/√2:
+    #   H ψ = (−1, e^{iφ})/√2 = −ψ.
+    # With α = 2π/N, ⟨ψ_k|ψ_{k+1}⟩ = (1 + e^{iα})/2 = cos(α/2) e^{iα/2}, so
+    #   Π_k ⟨ψ_k|ψ_{k+1}⟩ = cos^N(π/N) e^{iπ}: phase π, for any N.
+    # The product is unchanged by ψ_k → e^{iθ_k} ψ_k when ψ_N = ψ_0, so eigh's phases drop out.
+    from eigenlab.pauli import Y
+
+    def h(phi: float) -> np.ndarray:
+        return np.cos(phi) * X + np.sin(phi) * Y
+
+    def hand_ground(phi: float) -> np.ndarray:
+        return np.array([1.0, -np.exp(1j * phi)], dtype=complex) / np.sqrt(2.0)
+
+    def loop_phase(states: list[np.ndarray]) -> float:
+        prod = 1.0 + 0.0j
+        for k in range(len(states)):
+            prod *= np.vdot(states[k], states[(k + 1) % len(states)])
+        # Distance of the product's phase from π, wrapped into (−π, π].
+        return float(abs(np.angle(prod * np.exp(-1j * np.pi))))
+
+    for phi in [0.0, np.pi / 2.0]:
+        assert np.allclose(spectrum(h(phi)), [-1.0, 1.0], atol=1e-12)
+        psi = hand_ground(phi)
+        assert np.isclose(np.vdot(psi, h(phi) @ psi).real, -1.0, atol=1e-12)
+
+    n_points = 128
+    phis = [2.0 * np.pi * k / n_points for k in range(n_points)]
+    from_eigh = [eigensystem(h(phi))[1][:, 0] for phi in phis]
+    from_hand = [hand_ground(phi) for phi in phis]
+
+    assert loop_phase(from_eigh) < 1e-2
+    assert loop_phase(from_hand) < 1e-2
