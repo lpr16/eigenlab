@@ -52,3 +52,14 @@ def depolarize(rho: np.ndarray, p: float) -> np.ndarray:
         raise ValueError("p must be in [0, 1]")
     mat = _one_qubit_rho(rho)
     return (1.0 - p) * mat + (p / 3.0) * (X @ mat @ X + Y @ mat @ Y + Z @ mat @ Z)
+
+
+def dephasing(rho: np.ndarray, gamma: float, time: float) -> np.ndarray:
+    """Closed-form solution of dρ/dt = γ (ZρZ − ρ): ρ₀₁(t) = ρ₀₁(0) e^{−2γt}, diagonal fixed."""
+    if gamma < 0:
+        raise ValueError("gamma must be nonnegative")
+    out = _one_qubit_rho(rho).copy()
+    decay = np.exp(-2.0 * float(gamma) * float(time))
+    out[0, 1] *= decay
+    out[1, 0] *= decay
+    return out

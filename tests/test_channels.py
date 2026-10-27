@@ -45,3 +45,38 @@ def test_depolarize():
 
     assert np.allclose(depolarize(rho, 0.0), rho, atol=1e-12)
     assert np.allclose(depolarize(rho, 0.75), np.eye(2) / 2.0, atol=1e-12)
+
+
+def _mixed_qubit() -> np.ndarray:
+    # A mixed state with populations and a complex coherence: r = (0.3, −0.4, 0.5), |r| < 1.
+    from eigenlab.pauli import X, Y, Z
+
+    return 0.5 * (np.eye(2) + 0.3 * X - 0.4 * Y + 0.5 * Z)
+
+
+def test_dephasing_closed_form():
+    # Phase 41: Dephasing, closed form
+    # (ZρZ)₀₀ = ρ₀₀, (ZρZ)₁₁ = ρ₁₁, (ZρZ)₀₁ = −ρ₀₁, so
+    #   dρ₀₀/dt = dρ₁₁/dt = 0 and dρ₀₁/dt = −2γ ρ₀₁, i.e. ρ₀₁(t) = ρ₀₁(0) e^{−2γt}.
+    # |+⟩⟨+| has ρ₀₁(0) = 1/2. At γ = 1:
+    #   t = ln 2:     e^{−2 ln 2} = 1/4, so ρ₀₁ = 1/8.
+    #   t = (ln 2)/2: e^{−ln 2} = 1/2,  so ρ₀₁ = 1/4.
+    from eigenlab.channels import dephasing
+    from eigenlab.pauli import Z
+    from eigenlab.states import PLUS
+
+    plus = density(PLUS)
+    assert np.isclose(dephasing(plus, 1.0, 0.0)[0, 1], 0.5, atol=1e-12)
+    assert np.isclose(dephasing(plus, 1.0, np.log(2.0))[0, 1], 0.125, atol=1e-12)
+    assert np.isclose(dephasing(plus, 1.0, np.log(2.0) / 2.0)[0, 1], 0.25, atol=1e-12)
+    assert np.allclose(np.diag(dephasing(plus, 1.0, np.log(2.0))), [0.5, 0.5], atol=1e-12)
+
+    # The implemented map solves the master equation.
+    gamma = 0.8
+    rho0 = _mixed_qubit()
+    step = 1e-6
+    for t in [0.0, 0.3, np.log(2.0)]:
+        central = (dephasing(rho0, gamma, t + step) - dephasing(rho0, gamma, t - step)) / (2.0 * step)
+        rho_t = dephasing(rho0, gamma, t)
+        rhs = gamma * (Z @ rho_t @ Z - rho_t)
+        assert np.max(np.abs(central - rhs)) < 1e-8
