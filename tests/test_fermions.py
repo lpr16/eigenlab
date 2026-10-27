@@ -811,3 +811,22 @@ def test_ring_closing_bond_is_a_jordan_wigner_string():
         for i in range(n - 1):
             jw_ring = jw_ring + bond(i, i + 1, n, t)
         assert np.allclose(spectrum(jw_ring), spectrum(tight_binding_ring(n, t=t)), atol=1e-8)
+
+
+def test_tight_binding_ring_bravyi_kitaev():
+    # Phase 31: The same ring in Bravyi–Kitaev
+    # a^{BK}_p = Π a^{JW}_p Π^T for a basis permutation Π, so the two rings are unitarily
+    # equivalent: same spectrum, different Pauli strings.
+    from eigenlab.fermions import tight_binding_ring
+    from eigenlab.hamiltonian import spectrum
+
+    for n in [3, 4, 5]:
+        jw = tight_binding_ring(n, t=1.0)
+        bk = tight_binding_ring(n, t=1.0, mapping="bravyi_kitaev")
+        assert np.allclose(spectrum(bk), spectrum(jw), atol=1e-8)
+        assert {l for _, l in bk.terms} != {l for _, l in jw.terms}
+
+        # The default stays Jordan–Wigner.
+        default = tight_binding_ring(n, t=1.0)
+        explicit = tight_binding_ring(n, t=1.0, mapping="jordan_wigner")
+        assert default.terms == explicit.terms
