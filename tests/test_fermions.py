@@ -705,3 +705,43 @@ def test_kitaev_chain_two_sites():
         assert np.allclose(np.linalg.eigvalsh(even), [-r, r], atol=1e-12)
         assert np.allclose(np.linalg.eigvalsh(odd), [-t, t], atol=1e-12)
         assert np.allclose(spectrum(h), np.sort([-r, r, -t, t]), atol=1e-12)
+
+
+def test_kitaev_bogoliubov_spectrum():
+    # Phase 28: Kitaev Bogoliubov spectrum
+    # H = ½ Ψ† H_BdG Ψ with Ψ = (a_0 … a_{n−1}, a†_0 … a†_{n−1}) and
+    #   A_ii = −μ, A_{i,i+1} = A_{i+1,i} = −t, B_{i,i+1} = Δ, B_{i+1,i} = −Δ.
+    # −μ (n_i − 1/2) = ½ (−μ a†_i a_i + μ a_i a†_i) already has the ½ Ψ† A Ψ form, so no
+    # constant is left over and E(ν) = Σ_k (ν_k − 1/2) ε_k with ε_k the n largest eigenvalues.
+    import itertools
+    from eigenlab.fermions import kitaev_bogoliubov_spectrum, kitaev_chain
+    from eigenlab.hamiltonian import spectrum
+
+    for n in [2, 3, 4]:
+        for t, delta, mu in [(1.0, 0.0, 0.0), (1.0, 1.0, 0.0), (1.0, 1.0, 0.5), (0.7, 1.3, 0.2)]:
+            A = np.zeros((n, n))
+            B = np.zeros((n, n))
+            for i in range(n):
+                A[i, i] = -mu
+            for i in range(n - 1):
+                A[i, i + 1] = A[i + 1, i] = -t
+                B[i, i + 1] = delta
+                B[i + 1, i] = -delta
+            bdg = np.block([[A, B], [-B, -A]])
+            eps = np.linalg.eigvalsh(bdg)[n:]
+            assert np.all(eps >= -1e-12)
+
+            energies = np.sort(
+                [
+                    sum((nu[k] - 0.5) * eps[k] for k in range(n))
+                    for nu in itertools.product([0, 1], repeat=n)
+                ]
+            )
+            assert len(energies) == 2**n
+            assert np.allclose(energies, spectrum(kitaev_chain(n, t=t, delta=delta, mu=mu)), atol=1e-8)
+            assert np.allclose(energies, kitaev_bogoliubov_spectrum(n, t=t, delta=delta, mu=mu), atol=1e-12)
+
+            if n == 2:
+                # The blocks from phase 27: ±√(μ² + Δ²) and ±t.
+                r = np.sqrt(mu**2 + delta**2)
+                assert np.allclose(energies, np.sort([-r, r, -t, t]), atol=1e-8)

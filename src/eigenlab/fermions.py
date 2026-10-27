@@ -225,6 +225,38 @@ def kitaev_chain(
     return H.simplify()
 
 
+def kitaev_bdg_matrix(
+    n: int, t: float = 1.0, delta: float = 1.0, mu: float = 0.0
+) -> np.ndarray:
+    """Bogoliubov–de Gennes 2n x 2n matrix [[A, B], [−B, −A]] for the open Kitaev chain."""
+    if n < 2:
+        raise ValueError("kitaev_chain requires at least 2 sites")
+    A = np.zeros((n, n), dtype=float)
+    B = np.zeros((n, n), dtype=float)
+    for i in range(n):
+        A[i, i] = -float(mu)
+    for i in range(n - 1):
+        A[i, i + 1] = -float(t)
+        A[i + 1, i] = -float(t)
+        B[i, i + 1] = float(delta)
+        B[i + 1, i] = -float(delta)
+    return np.block([[A, B], [-B, -A]])
+
+
+def kitaev_bogoliubov_spectrum(
+    n: int, t: float = 1.0, delta: float = 1.0, mu: float = 0.0
+) -> np.ndarray:
+    """All 2^n many-body energies Σ_k (ν_k − 1/2) ε_k of the open Kitaev chain, ascending."""
+    import itertools
+
+    eps = np.linalg.eigvalsh(kitaev_bdg_matrix(n, t=t, delta=delta, mu=mu))[n:]
+    energies = [
+        sum((nu_k - 0.5) * eps[k] for k, nu_k in enumerate(nu))
+        for nu in itertools.product([0, 1], repeat=n)
+    ]
+    return np.sort(np.array(energies, dtype=float))
+
+
 def total_spin_z(n_spatial: int) -> Hamiltonian:
     """Total spin projection S_z = (1/2) ∑_i (n_{i↑} - n_{i↓}).
 
