@@ -319,3 +319,33 @@ def test_heisenberg_dimer_spin_blocks():
     assert np.allclose(np.real(np.linalg.eigvalsh(blocks[-1])), [1.0], atol=1e-12)
 
 
+
+
+def test_lanczos_full_krylov_space():
+    # Phase 48: Lanczos, exact when the Krylov space is full
+    # The Krylov space of a start vector is spanned by its components on the eigenvectors of H
+    # with distinct eigenvalues. When it is invariant, T is H restricted to it and its
+    # eigenvalues are exact.
+    from eigenlab.hamiltonian import lanczos
+
+    # |00⟩ is an eigenvector of the Heisenberg dimer at +1: H|00⟩ = ZZ|00⟩ = |00⟩,
+    # since (XX + YY)|00⟩ = |11⟩ − |11⟩ = 0. The first residual vanishes.
+    h = heisenberg_dimer()
+    start = basis(0, 2)
+    values, t_mat = lanczos(h, start, 4)
+    assert t_mat.shape == (1, 1)
+    assert np.isclose(t_mat[0, 0], expectation(h, start), atol=1e-12)
+    assert np.allclose(values, [1.0], atol=1e-12)
+
+    # transverse_ising(3, 1, 1) has eight distinct eigenvalues, and (|000⟩ + |001⟩)/√2 overlaps
+    # every eigenvector, so eight steps span the whole space.
+    h = transverse_ising(3, coupling=1.0, field=1.0)
+    start = (basis(0, 3) + basis(1, 3)) / np.sqrt(2.0)
+    exact, vectors = eigensystem(h)
+    assert np.all(np.diff(exact) > 1e-6)
+    assert np.all(np.abs(vectors.conj().T @ start) > 1e-3)
+
+    values, t_mat = lanczos(h, start, 8)
+    assert t_mat.shape == (8, 8)
+    assert np.isclose(t_mat[0, 0], expectation(h, start), atol=1e-12)
+    assert np.allclose(values, exact, atol=1e-8)

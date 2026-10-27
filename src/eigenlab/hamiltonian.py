@@ -337,3 +337,57 @@ def spectrum(hamiltonian: np.ndarray | Hamiltonian) -> np.ndarray:
     """Ascending eigenvalues of a Hermitian operator."""
     energies, _ = eigensystem(hamiltonian)
     return energies
+
+
+def lanczos(
+    hamiltonian: np.ndarray | Hamiltonian,
+    start: np.ndarray,
+    steps: int,
+    tol: float = 1e-12,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Lanczos from `start` for at most `steps` steps, reorthogonalized against every previous vector.
+
+    Returns the ascending eigenvalues of the tridiagonal Krylov matrix T, and T itself, with
+    T[0, 0] = ⟨start|H|start⟩. Stops early when β ≤ tol ‖H v‖: the Krylov space is then
+    invariant and every returned eigenvalue is exact.
+    """
+    if steps < 1:
+        raise ValueError("steps must be at least 1")
+    h_mat = (
+        hamiltonian.to_matrix()
+        if isinstance(hamiltonian, Hamiltonian)
+        else np.asarray(hamiltonian, dtype=complex)
+    )
+    ket = np.asarray(start, dtype=complex).reshape(-1)
+    if ket.size != h_mat.shape[0]:
+        raise ValueError("start does not match the Hamiltonian dimension")
+    norm = np.linalg.norm(ket)
+    if norm == 0:
+        raise ValueError("start has zero norm")
+
+    vectors = [ket / norm]
+    alphas: list[float] = []
+    betas: list[float] = []
+    for j in range(min(steps, ket.size)):
+        v = vectors[-1]
+        hv = h_mat @ v
+        alpha = float(np.vdot(v, hv).real)
+        alphas.append(alpha)
+        if j == steps - 1:
+            break
+        w = hv - alpha * v
+        if betas:
+            w = w - betas[-1] * vectors[-2]
+        for _ in range(2):
+            for u in vectors:
+                w = w - np.vdot(u, w) * u
+        beta = float(np.linalg.norm(w))
+        if beta <= tol * np.linalg.norm(hv):
+            break
+        betas.append(beta)
+        vectors.append(w / beta)
+
+    k = len(alphas)
+    off = np.array(betas[: k - 1], dtype=float)
+    tridiagonal = np.diag(np.array(alphas, dtype=float)) + np.diag(off, 1) + np.diag(off, -1)
+    return np.linalg.eigvalsh(tridiagonal), tridiagonal
