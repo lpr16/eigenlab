@@ -961,3 +961,61 @@ def test_peschel_correlation_matrix_entanglement():
             assert np.isclose(s_peschel, peschel_entropy(c_a), atol=1e-14)
             assert np.isclose(s_peschel, bipartite_entropy(gs, ell), atol=1e-8)
 
+
+def test_ssh_dimers_entanglement():
+    # Phase 37: SSH dimers
+    from eigenlab.fermions import (
+        embed_occupation_state,
+        occupation_block,
+        one_particle_rdm,
+        peschel_entropy,
+        ssh_chain,
+    )
+    from eigenlab.states import basis, bipartite_entropy
+
+    n = 4
+    n_occ = 2
+    v = 1.0
+    w = 0.0
+
+    # Single-particle SSH matrix at v = 1, w = 0
+    m_sp = np.zeros((n, n), dtype=float)
+    for i in range(n - 1):
+        hop = v if (i % 2 == 0) else w
+        m_sp[i, i + 1] = m_sp[i + 1, i] = -hop
+
+    sp_evals, sp_evecs = np.linalg.eigh(m_sp)
+    assert np.allclose(sp_evals, [-1.0, -1.0, 1.0, 1.0], atol=1e-12)
+
+    phi_occ = sp_evecs[:, :n_occ]
+    C = phi_occ @ phi_occ.T
+
+    # Many-body ground state in the N = 2 occupation block
+    h_ssh = ssh_chain(n, v=v, w=w)
+    block = occupation_block(h_ssh, n_particles=n_occ, n_orbitals=n)
+    mb_evals, mb_evecs = np.linalg.eigh(block)
+    assert np.isclose(mb_evals[0], -2.0, atol=1e-12)
+    assert mb_evals[1] - mb_evals[0] > 1.0
+    gs = embed_occupation_state(mb_evecs[:, 0], n_particles=n_occ, n_orbitals=n)
+
+    # Each strong bond holds one fermion in its bonding orbital, (|10⟩ + |01⟩)/√2
+    dimer_bond = (basis(0b10, 2) + basis(0b01, 2)) / np.sqrt(2.0)
+    expected_gs = np.kron(dimer_bond, dimer_bond)
+    assert np.isclose(abs(np.vdot(expected_gs, gs)), 1.0, atol=1e-12)
+
+    gamma = one_particle_rdm(gs, n)
+    assert np.allclose(gamma, C, atol=1e-12)
+
+    # Cutting through a strong bond (ℓ = 1) gives 1 bit
+    assert np.isclose(bipartite_entropy(gs, 1), 1.0, atol=1e-12)
+    assert np.isclose(peschel_entropy(C[:1, :1]), 1.0, atol=1e-12)
+
+    # Cutting between dimers (ℓ = 2) gives 0 bits
+    assert np.isclose(bipartite_entropy(gs, 2), 0.0, atol=1e-12)
+    assert np.isclose(peschel_entropy(C[:2, :2]), 0.0, atol=1e-12)
+
+    # Cutting through the second strong bond (ℓ = 3) also gives 1 bit
+    assert np.isclose(bipartite_entropy(gs, 3), 1.0, atol=1e-12)
+    assert np.isclose(peschel_entropy(C[:3, :3]), 1.0, atol=1e-12)
+
+
