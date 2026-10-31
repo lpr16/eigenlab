@@ -1,6 +1,12 @@
 import numpy as np
 
-from eigenlab.integrals import gaussian_overlap
+from eigenlab.integrals import (
+    STO3G_1S_COEFFICIENTS,
+    STO3G_1S_EXPONENTS,
+    contracted_overlap,
+    gaussian_overlap,
+    sto3g_1s,
+)
 
 
 def test_gaussian_overlap():
@@ -48,3 +54,31 @@ def test_gaussian_overlap():
     ]
     for s_near, s_far in zip(overlaps, overlaps[1:]):
         assert s_near > s_far > 0.0
+
+
+def test_sto3g_1s_contraction():
+    # Phase 2: STO-3G 1s contraction
+    # Reference: Hehre, Stewart, and Pople, J. Chem. Phys. 51, 2657 (1969), Table I.
+    # For ζ = 1: exponents (0.109818, 0.405771, 2.22766), coefficients (0.444635, 0.535328, 0.154329).
+    # Exponents scale as ζ²; contraction coefficients do not.
+    chi_unit = sto3g_1s(1.0, [0.0, 0.0, 0.0])
+    assert chi_unit.exponents == (0.109818, 0.405771, 2.22766)
+    assert chi_unit.coefficients == (0.444635, 0.535328, 0.154329)
+    assert STO3G_1S_EXPONENTS == (0.109818, 0.405771, 2.22766)
+    assert STO3G_1S_COEFFICIENTS == (0.444635, 0.535328, 0.154329)
+
+    for zeta in [1.0, 1.24, 2.0925]:
+        chi = sto3g_1s(zeta, [0.2, -0.1, 0.5])
+        assert np.allclose(chi.exponents, [a * zeta**2 for a in STO3G_1S_EXPONENTS], atol=1e-15)
+        assert chi.coefficients == STO3G_1S_COEFFICIENTS
+        # Contracted self-overlap is 1 to 1e-5 (six-digit printed coefficients)
+        assert np.isclose(contracted_overlap(chi, chi), 1.0, atol=1e-5)
+
+    # At R = 1.4632 bohr with ζ_He = 2.0925 and ζ_H = 1.24, the contracted overlap
+    # matches S_12 = 0.450770 transcribed in heh_sto3g_integrals docstring (Szabo & Ostlund Table 3.5).
+    R = 1.4632
+    chi_he = sto3g_1s(2.0925, [0.0, 0.0, 0.0])
+    chi_h = sto3g_1s(1.24, [0.0, 0.0, R])
+    s_12 = contracted_overlap(chi_he, chi_h)
+    assert np.isclose(s_12, 0.450770, atol=1e-5)
+
