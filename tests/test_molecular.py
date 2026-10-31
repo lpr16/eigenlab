@@ -498,6 +498,21 @@ def test_h4_two_far_molecules():
     assert np.isclose(e_rhf_h4, 2.0 * e_rhf_h2, atol=1e-6)
 
 
+def test_h4_four_far_atoms():
+    # Phase 22: Four far atoms (a = b = 20)
+    # Full CI in N = 4 is 4 * H_ATOM_STO3G_ENERGY to 1e-5, and the lowest level
+    # is degenerate (2^4 = 16 spin configurations of four independent 1s electrons).
+    from eigenlab.molecular import H_ATOM_STO3G_ENERGY
+
+    h_far = h4_sto3g_hamiltonian(20.0, 20.0)
+    evals_n4 = np.linalg.eigvalsh(occupation_block(h_far, n_particles=4))
+    assert np.isclose(evals_n4[0], 4.0 * H_ATOM_STO3G_ENERGY, atol=1e-5)
+    # 16-fold spin degeneracy of four independent atoms
+    assert np.allclose(evals_n4[:16], evals_n4[0], atol=1e-8)
+    assert evals_n4[16] - evals_n4[0] > 1e-2
+
+
+
 
 
 
