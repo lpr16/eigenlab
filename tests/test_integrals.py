@@ -4,9 +4,11 @@ from eigenlab.integrals import (
     STO3G_1S_COEFFICIENTS,
     STO3G_1S_EXPONENTS,
     boys0,
+    contracted_eri,
     contracted_kinetic,
     contracted_nuclear_attraction,
     contracted_overlap,
+    gaussian_eri,
     gaussian_kinetic,
     gaussian_nuclear_attraction,
     gaussian_overlap,
@@ -178,6 +180,59 @@ def test_boys0_and_nuclear_attraction():
     assert np.isclose(h_11, -2.652744, atol=1e-5)
     assert np.isclose(h_12, -1.347205, atol=1e-5)
     assert np.isclose(h_22, -1.731828, atol=1e-5)
+
+
+def test_electron_repulsion_integral():
+    # Phase 5: Electron repulsion integral (ab|cd) in chemist notation
+    # Algebra for four copies of one normalized primitive at one centre (a = b = c = d, A = B = C = D):
+    #   p = 2a, q = 2a, p + q = 4a, K_ab = K_cd = 1, P = Q so F0(0) = 1,
+    #   and N(a)⁴ = (2a / π)³ = 8a³ / π³.
+    #   (aa|aa) = [ 2π^{5/2} / ((2a)(2a)√(4a)) ] · (8a³ / π³)
+    #           = [ 2π^{5/2} / (8a^{5/2}) ] · (8a³ / π³)
+    #           = 2 √(a / π).
+    for a in [0.15, 0.5, 1.0, 2.22766, 3.8]:
+        center = [0.2, -0.4, 0.9]
+        expected = 2.0 * np.sqrt(a / np.pi)
+        assert np.isclose(
+            gaussian_eri(a, center, a, center, a, center, a, center),
+            expected,
+            atol=1e-14,
+        )
+
+    # Real eightfold symmetry:
+    # (ab|cd) = (ba|cd) = (ab|dc) = (ba|dc) = (cd|ab) = (dc|ab) = (cd|ba) = (dc|ba)
+    p1 = (0.3, [0.0, 0.1, 0.2])
+    p2 = (0.7, [0.4, -0.2, 0.5])
+    p3 = (1.1, [-0.3, 0.6, 0.1])
+    p4 = (1.6, [0.2, 0.3, -0.4])
+    ref = gaussian_eri(*p1, *p2, *p3, *p4)
+    for perm in [
+        (p1, p2, p3, p4),
+        (p2, p1, p3, p4),
+        (p1, p2, p4, p3),
+        (p2, p1, p4, p3),
+        (p3, p4, p1, p2),
+        (p4, p3, p1, p2),
+        (p3, p4, p2, p1),
+        (p4, p3, p2, p1),
+    ]:
+        val = gaussian_eri(*perm[0], *perm[1], *perm[2], *perm[3])
+        assert np.isclose(val, ref, atol=1e-15)
+
+    # Six HeH+ AO two-electron integrals at R = 1.4632 match heh_sto3g_integrals docstring
+    # (Szabo & Ostlund Section 3.5.3, Table 3.5):
+    #   (11|11) = 1.307152, (21|11) = 0.437279, (21|21) = 0.177267,
+    #   (22|11) = 0.605703, (22|21) = 0.311795, (22|22) = 0.774608.
+    chi_1 = sto3g_1s(2.0925, [0.0, 0.0, 0.0])
+    chi_2 = sto3g_1s(1.24, [0.0, 0.0, 1.4632])
+
+    assert np.isclose(contracted_eri(chi_1, chi_1, chi_1, chi_1), 1.307152, atol=1e-5)
+    assert np.isclose(contracted_eri(chi_2, chi_1, chi_1, chi_1), 0.437279, atol=1e-5)
+    assert np.isclose(contracted_eri(chi_2, chi_1, chi_2, chi_1), 0.177267, atol=1e-5)
+    assert np.isclose(contracted_eri(chi_2, chi_2, chi_1, chi_1), 0.605703, atol=1e-5)
+    assert np.isclose(contracted_eri(chi_2, chi_2, chi_2, chi_1), 0.311795, atol=1e-5)
+    assert np.isclose(contracted_eri(chi_2, chi_2, chi_2, chi_2), 0.774608, atol=1e-5)
+
 
 
 

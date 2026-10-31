@@ -176,4 +176,81 @@ def contracted_nuclear_attraction(
     return total
 
 
+def gaussian_eri(
+    a: float,
+    A: Sequence[float] | np.ndarray | float,
+    b: float,
+    B: Sequence[float] | np.ndarray | float,
+    c: float,
+    C: Sequence[float] | np.ndarray | float,
+    d: float,
+    D: Sequence[float] | np.ndarray | float,
+) -> float:
+    """Two-electron repulsion integral (ab|cd) in chemist notation for four normalized s primitives.
+
+    With p = a + b, q = c + d, P = (a A + b B)/p, Q = (c C + d D)/q,
+    K_ab = exp(-(ab/p)|A - B|^2), and K_cd = exp(-(cd/q)|C - D|^2):
+        (ab|cd) = [2 pi^(5/2) / (p q sqrt(p + q))] K_ab K_cd F_0(pq/(p+q) |P - Q|^2)
+                  * (16 a b c d / pi^4)^(3/4)
+    """
+    if a <= 0.0 or b <= 0.0 or c <= 0.0 or d <= 0.0:
+        raise ValueError("Gaussian exponents must be positive.")
+    vec_a = _as_center(A)
+    vec_b = _as_center(B)
+    vec_c = _as_center(C)
+    vec_d = _as_center(D)
+
+    p = float(a + b)
+    q = float(c + d)
+    mu_ab = float(a * b) / p
+    mu_cd = float(c * d) / q
+
+    diff_ab = vec_a - vec_b
+    diff_cd = vec_c - vec_d
+    r2_ab = float(np.dot(diff_ab, diff_ab))
+    r2_cd = float(np.dot(diff_cd, diff_cd))
+
+    vec_p = (a * vec_a + b * vec_b) / p
+    vec_q = (c * vec_c + d * vec_d) / q
+    diff_pq = vec_p - vec_q
+    r2_pq = float(np.dot(diff_pq, diff_pq))
+
+    k_ab = math.exp(-mu_ab * r2_ab)
+    k_cd = math.exp(-mu_cd * r2_cd)
+    norm_abcd = ((16.0 * a * b * c * d) / (math.pi**4)) ** 0.75
+    prefactor = 2.0 * (math.pi**2.5) / (p * q * math.sqrt(p + q))
+    return prefactor * k_ab * k_cd * boys0((p * q / (p + q)) * r2_pq) * norm_abcd
+
+
+gaussian_electron_repulsion = gaussian_eri
+
+
+def contracted_eri(
+    chi_a: ContractedGaussian,
+    chi_b: ContractedGaussian,
+    chi_c: ContractedGaussian,
+    chi_d: ContractedGaussian,
+) -> float:
+    """Two-electron repulsion integral (ab|cd) in chemist notation for four contracted s Gaussians."""
+    total = 0.0
+    for ca, aa in zip(chi_a.coefficients, chi_a.exponents):
+        for cb, ab in zip(chi_b.coefficients, chi_b.exponents):
+            for cc, ac in zip(chi_c.coefficients, chi_c.exponents):
+                for cd, ad in zip(chi_d.coefficients, chi_d.exponents):
+                    total += (
+                        ca
+                        * cb
+                        * cc
+                        * cd
+                        * gaussian_eri(
+                            aa, chi_a.center, ab, chi_b.center, ac, chi_c.center, ad, chi_d.center
+                        )
+                    )
+    return total
+
+
+contracted_electron_repulsion = contracted_eri
+
+
+
 
