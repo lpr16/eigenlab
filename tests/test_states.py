@@ -370,3 +370,25 @@ def test_relative_entropy():
     # sigma must be positive definite; otherwise raise ValueError
     with pytest.raises(ValueError, match="positive definite"):
         relative_entropy(i_over_2, rho_0)
+
+
+def test_bipartite_entropy_at_any_cut():
+    # Phase 35: Entropy at any cut
+    # At the middle cut it equals entanglement_entropy. ghz(n) has 1 bit at every cut.
+    # A product state has 0.
+    from eigenlab.states import bipartite_entropy
+
+    for n in [2, 3, 4, 5, 6]:
+        g = ghz(n)
+        assert np.isclose(bipartite_entropy(g, n // 2), entanglement_entropy(g), atol=1e-12)
+        for cut in range(1, n):
+            assert np.isclose(bipartite_entropy(g, cut), 1.0, atol=1e-12)
+
+        prod = basis(0, n)
+        for cut in range(1, n):
+            assert bipartite_entropy(prod, cut) == 0.0
+
+    # Non-uniform state at middle cut matches entanglement_entropy
+    psi_4 = 0.6 * basis(0b0000, 4) + 0.5 * basis(0b0110, 4) + np.sqrt(1.0 - 0.36 - 0.25) * basis(0b1111, 4)
+    assert np.isclose(bipartite_entropy(psi_4, 2), entanglement_entropy(psi_4), atol=1e-12)
+

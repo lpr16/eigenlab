@@ -5,6 +5,7 @@ from __future__ import annotations
 import numpy as np
 
 from eigenlab.hamiltonian import Hamiltonian
+from eigenlab.states import bipartite_entropy
 
 
 def jordan_wigner_a(p: int, n: int) -> Hamiltonian:

@@ -143,6 +143,29 @@ def entanglement_entropy(state: np.ndarray) -> float:
     return ent
 
 
+def bipartite_entropy(state: np.ndarray, cut: int) -> float:
+    """Von Neumann entanglement entropy in bits for the first ``cut`` qubits against the rest."""
+    ket = np.asarray(state, dtype=complex).reshape(-1)
+    dim = ket.size
+    qubits = int(np.round(np.log2(dim)))
+    if (1 << qubits) != dim or qubits < 2:
+        raise ValueError("state must be at least two qubits with dimension 2^n")
+    if not 1 <= cut < qubits:
+        raise ValueError(f"cut must satisfy 1 <= cut < {qubits}, got {cut}")
+    norm = np.linalg.norm(ket)
+    if norm == 0:
+        raise ValueError("state has zero norm")
+    ket = ket / norm
+    mat = ket.reshape((1 << cut, 1 << (qubits - cut)))
+    s = np.linalg.svd(mat, compute_uv=False)
+    probs = s**2
+    probs = probs[probs > 1e-15]
+    ent = float(-np.sum(probs * np.log2(probs)))
+    if abs(ent) < 1e-14:
+        return 0.0
+    return ent
+
+
 def concurrence(state: np.ndarray) -> float:
     """Concurrence of a two-qubit state, lying in [0, 1]."""
     arr = np.asarray(state, dtype=complex)
