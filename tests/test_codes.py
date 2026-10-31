@@ -2,14 +2,21 @@ import numpy as np
 
 from eigenlab.codes import (
     BIT_FLIP_STABILIZERS,
+    PHASE_FLIP_STABILIZERS,
     bit_flip_channel,
     code_projector,
     correct_bit_flip,
+    correct_phase_flip,
     encode_bit_flip,
+    encode_phase_flip,
     error_syndrome,
+    phase_flip_channel,
+    phase_flip_stabilizers,
+    stabilizer_group,
     stabilizers_commute,
+    transversal_clifford,
 )
-from eigenlab.pauli import X, apply_pauli, pauli, pauli_comm
+from eigenlab.pauli import X, apply_pauli, conjugate_clifford, pauli, pauli_comm
 from eigenlab.states import ONE, PLUS, ZERO, basis, density, ghz
 
 
@@ -84,4 +91,53 @@ def test_bit_flip_code():
             assert p_fail < p
         if np.isclose(p, 0.5):
             assert np.isclose(p_fail, 0.5, atol=1e-15)
+
+
+def test_phase_flip_code():
+    # Phase 27: The phase-flip code
+    # Conjugate the bit-flip code by H on every qubit through conjugate_clifford -> XXI and IXX.
+    conjugated = []
+    for s in BIT_FLIP_STABILIZERS:
+        cur = s
+        for q in range(3):
+            phase, cur = conjugate_clifford(cur, "H", q)
+            assert phase == 1.0
+        conjugated.append(cur)
+    assert tuple(conjugated) == ("XXI", "IXX")
+    assert PHASE_FLIP_STABILIZERS == ("XXI", "IXX")
+    assert phase_flip_stabilizers() == ("XXI", "IXX")
+    assert stabilizers_commute(PHASE_FLIP_STABILIZERS)
+
+    # Corrects single Z errors with the same 3p² − 2p³ failure probability
+    errors_z = ["III", "ZII", "IZI", "IIZ"]
+    syndromes_z = [error_syndrome(e, PHASE_FLIP_STABILIZERS) for e in errors_z]
+    assert syndromes_z == [(1, 1), (-1, 1), (-1, -1), (1, -1)]
+
+    psi_1q = np.array([0.6, 0.8], dtype=complex)
+    psi_L = encode_phase_flip(psi_1q)
+    flipped_L = apply_pauli("ZZZ", psi_L)
+    rho_good = density(psi_L)
+    rho_bad = density(flipped_L)
+
+    for p in [0.0, 0.1, 0.5]:
+        p_fail = 3.0 * (p**2) - 2.0 * (p**3)
+        noisy = phase_flip_channel(psi_L, p)
+        corrected = correct_phase_flip(noisy)
+        expected = (1.0 - p_fail) * rho_good + p_fail * rho_bad
+        assert np.allclose(corrected, expected, atol=1e-12)
+
+    # The bit-flip code does not correct Z errors:
+    # ZII commutes with ZZI and IZZ, is not in their stabilizer group, and flips the logical phase.
+    assert pauli_comm("ZII", "ZZI")[0] == 0
+    assert pauli_comm("ZII", "IZZ")[0] == 0
+    bf_group = stabilizer_group(BIT_FLIP_STABILIZERS)
+    assert bf_group == {"III", "ZZI", "IZZ", "ZIZ"}
+    assert "ZII" not in bf_group
+
+    alpha, beta = 0.6, 0.8
+    bf_psi = encode_bit_flip(np.array([alpha, beta]))
+    bf_phase_flipped = encode_bit_flip(np.array([alpha, -beta]))
+    assert np.allclose(apply_pauli("ZII", bf_psi), bf_phase_flipped, atol=1e-12)
+    assert np.allclose(correct_bit_flip(apply_pauli("ZII", bf_psi)), density(bf_phase_flipped), atol=1e-12)
+
 
