@@ -294,5 +294,43 @@ def test_heh_sto3g():
     assert np.isclose(s2_op.expectation(psi_n2), 0.0, atol=1e-6)
 
 
+def test_h2_dissociation_curve():
+    # Phase 14: Dissociation
+    from eigenlab.fermions import natural_occupations
+    from eigenlab.integrals import ao_integrals, rhf
+    from eigenlab.molecular import H_ATOM_STO3G_ENERGY
+
+    grid = [round(0.8 + 0.1 * k, 1) for k in range(53)] + [10.0]
+    energies = [float(spectrum(h2_sto3g_hamiltonian(r))[0]) for r in grid]
+    assert all(np.isfinite(e) for e in energies)
+
+    # Single minimum on the grid: strictly decreasing up to i_min, strictly increasing after
+    i_min = int(np.argmin(energies))
+    assert 0 < i_min < len(grid) - 1
+    for i in range(i_min):
+        assert energies[i] > energies[i + 1]
+    for i in range(i_min, len(grid) - 1):
+        assert energies[i] < energies[i + 1]
+
+    # At R = 10, full CI is 2 * H_ATOM_STO3G_ENERGY to 1e-5, and the four spin-orbital
+    # natural occupations are each 1/2 to 1e-3 because the state is (σ_g² − σ_u²)/√2.
+    evals_10, evecs_10 = eigensystem(h2_sto3g_hamiltonian(10.0))
+    assert np.isclose(evals_10[0], 2.0 * H_ATOM_STO3G_ENERGY, atol=1e-5)
+    occ_10 = natural_occupations(evecs_10[:, 0], 4)
+    assert np.allclose(occ_10, [0.5, 0.5, 0.5, 0.5], atol=1e-3)
+
+    # RHF does not dissociate correctly: RHF minus full-CI gap at R = 6 is larger than at R = 1.401
+    def rhf_gap(r_val: float) -> float:
+        ao = ao_integrals([(1.0, 1.24, [0.0, 0.0, 0.0]), (1.0, 1.24, [0.0, 0.0, r_val])])
+        e_rhf = rhf(ao, n_electrons=2).energy
+        e_fci = float(spectrum(h2_sto3g_hamiltonian(r_val))[0])
+        return e_rhf - e_fci
+
+    gap_eq = rhf_gap(1.401)
+    gap_6 = rhf_gap(6.0)
+    assert gap_6 > gap_eq > 0.0
+
+
+
 
 
