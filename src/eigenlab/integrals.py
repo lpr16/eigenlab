@@ -378,6 +378,23 @@ def mo_transform(
     return h_mo, eri_mo
 
 
+def lowdin(S: np.ndarray) -> np.ndarray:
+    """Return the symmetric orthogonalization matrix ``X = S^(-1/2)`` via ``eigh``.
+
+    Raises ``ValueError`` if ``S`` has an eigenvalue below ``1e-10``.
+    """
+    s_mat = np.asarray(S, dtype=float)
+    if s_mat.ndim != 2 or s_mat.shape[0] != s_mat.shape[1]:
+        raise ValueError(f"Overlap matrix S must be square, got shape {s_mat.shape}")
+    if not np.allclose(s_mat, s_mat.T, atol=1e-10):
+        raise ValueError("Overlap matrix S must be symmetric.")
+    evals, evecs = np.linalg.eigh(s_mat)
+    if np.any(evals < 1e-10):
+        raise ValueError(f"Overlap matrix S has an eigenvalue below 1e-10: {evals.min()}")
+    return (evecs * (1.0 / np.sqrt(evals))) @ evecs.T
+
+
+
 
 
 

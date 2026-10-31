@@ -14,6 +14,7 @@ from eigenlab.integrals import (
     gaussian_nuclear_attraction,
     gaussian_overlap,
     h2_symmetry_orbitals,
+    lowdin,
     mo_transform,
     sto3g_1s,
 )
@@ -373,6 +374,36 @@ def test_h2_sto3g_any_bond_length():
             h1_tab, h2_tab, _ = _tabulated_h2_sto3g(R)
             assert np.allclose(h1, h1_tab, atol=1e-5)
             assert np.allclose(h2, h2_tab, atol=1e-5)
+
+
+def test_lowdin_symmetric_orthogonalization():
+    # Phase 10: Symmetric orthogonalization
+    # X = S^{−1/2} from eigh satisfies Xᵀ S X = I to 1e-12; eigenvalue < 1e-10 raises ValueError.
+    import pytest
+
+    for atoms in [
+        [(2.0, 2.0925, [0.0, 0.0, 0.0]), (1.0, 1.24, [0.0, 0.0, 1.4632])],
+        [(1.0, 1.24, [0.0, 0.0, 0.0]), (1.0, 1.24, [0.0, 0.0, 1.401])],
+        [
+            (1.0, 1.24, [-0.7, -1.0, 0.0]),
+            (1.0, 1.24, [0.7, -1.0, 0.0]),
+            (1.0, 1.24, [-0.7, 1.0, 0.0]),
+            (1.0, 1.24, [0.7, 1.0, 0.0]),
+        ],
+    ]:
+        S, _, _, _ = ao_integrals(atoms)
+        X = lowdin(S)
+        n = S.shape[0]
+        assert np.allclose(X, X.T, atol=1e-14)
+        assert np.allclose(X.T @ S @ X, np.eye(n), atol=1e-12)
+        assert np.allclose(X @ X, np.linalg.inv(S), atol=1e-12)
+
+    # Singular or nearly singular overlap matrix raises ValueError
+    with pytest.raises(ValueError):
+        lowdin(np.array([[1.0, 1.0], [1.0, 1.0]]))
+    with pytest.raises(ValueError):
+        lowdin(np.array([[1.0, 1.0 - 1e-11], [1.0 - 1e-11, 1.0]]))
+
 
 
 
