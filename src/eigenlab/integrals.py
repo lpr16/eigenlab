@@ -348,6 +348,37 @@ def ao_integrals(
     return AOIntegrals(S=s_mat, h=h_mat, eri=eri, v_nuc=v_nuc)
 
 
+def h2_symmetry_orbitals(S: np.ndarray | float) -> np.ndarray:
+    """Return the 2x2 minimal-basis symmetry-adapted MO coefficient matrix C = [sigma_g, sigma_u]."""
+    arr = np.asarray(S, dtype=float)
+    if arr.ndim == 0:
+        s00 = 1.0
+        s01 = float(arr)
+    elif arr.shape == (2, 2):
+        s00 = float(arr[0, 0])
+        s01 = float(arr[0, 1])
+    else:
+        raise ValueError(f"Expected scalar overlap or 2x2 overlap matrix, got shape {arr.shape}")
+    cg = 1.0 / math.sqrt(2.0 * (s00 + s01))
+    cu = 1.0 / math.sqrt(2.0 * (s00 - s01))
+    return np.array([[cg, cu], [cg, -cu]], dtype=float)
+
+
+def mo_transform(
+    C: np.ndarray,
+    h: np.ndarray,
+    eri: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Transform AO one- and two-electron integrals ``(h, eri)`` into the MO basis ``C`` (chemist notation)."""
+    c_mat = np.asarray(C, dtype=float)
+    h_ao = np.asarray(h, dtype=float)
+    eri_ao = np.asarray(eri, dtype=float)
+    h_mo = c_mat.T @ h_ao @ c_mat
+    eri_mo = np.einsum("mp,nq,lr,ks,mnlk->pqrs", c_mat, c_mat, c_mat, c_mat, eri_ao)
+    return h_mo, eri_mo
+
+
+
 
 
 

@@ -13,6 +13,8 @@ from eigenlab.integrals import (
     gaussian_kinetic,
     gaussian_nuclear_attraction,
     gaussian_overlap,
+    h2_symmetry_orbitals,
+    mo_transform,
     sto3g_1s,
 )
 from eigenlab.molecular import H_ATOM_STO3G_ENERGY
@@ -281,6 +283,40 @@ def test_ao_integrals_bundle_heh():
     assert np.isclose(eri[1, 1, 0, 0], 0.605703, atol=1e-5)
     assert np.isclose(eri[1, 1, 1, 0], 0.311795, atol=1e-5)
     assert np.isclose(eri[1, 1, 1, 1], 0.774608, atol=1e-5)
+
+
+def test_minimal_basis_orbitals_and_mo_transform():
+    # Phase 7: Minimal-basis orbitals
+    # For two hydrogen 1s functions φ_1, φ_2 with overlap S:
+    #   σ_g = (φ_1 + φ_2) / √(2(1 + S)),   σ_u = (φ_1 − φ_2) / √(2(1 − S))
+    # With C = [σ_g, σ_u], Cᵀ S C = I to 1e-12.
+    for R in [1.0, 1.401, 2.0, 3.0]:
+        atoms = [(1.0, 1.24, [0.0, 0.0, 0.0]), (1.0, 1.24, [0.0, 0.0, R])]
+        S, h, eri, _ = ao_integrals(atoms)
+
+        # Direct check with unit-diagonal overlap matrix [[1, s], [s, 1]] and formula 1/√(2(1±s))
+        s = S[0, 1]
+        S_unit = np.array([[1.0, s], [s, 1.0]])
+        C_unit = np.array(
+            [
+                [1.0 / np.sqrt(2.0 * (1.0 + s)), 1.0 / np.sqrt(2.0 * (1.0 - s))],
+                [1.0 / np.sqrt(2.0 * (1.0 + s)), -1.0 / np.sqrt(2.0 * (1.0 - s))],
+            ]
+        )
+        assert np.allclose(C_unit.T @ S_unit @ C_unit, np.eye(2), atol=1e-12)
+
+        # And with the AO overlap matrix S directly via h2_symmetry_orbitals(S)
+        C = h2_symmetry_orbitals(S)
+        assert np.allclose(C.T @ S @ C, np.eye(2), atol=1e-12)
+        assert np.allclose(C, C_unit, atol=1e-5)
+
+        h_mo, eri_mo = mo_transform(C, h, eri)
+        assert h_mo.shape == (2, 2)
+        assert eri_mo.shape == (2, 2, 2, 2)
+        assert np.allclose(h_mo, h_mo.T, atol=1e-14)
+        # By inversion symmetry, <σ_g | h | σ_u> = 0
+        assert np.isclose(h_mo[0, 1], 0.0, atol=1e-14)
+
 
 
 
