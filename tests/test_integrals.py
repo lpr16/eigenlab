@@ -318,20 +318,62 @@ def test_minimal_basis_orbitals_and_mo_transform():
         assert np.isclose(h_mo[0, 1], 0.0, atol=1e-14)
 
 
+_H2_STO3G_ORACLE_TABLE: dict[float, tuple[float, float, float, float, float, float]] = {
+    1.0: (-1.390219, -0.291653, 0.714439, 0.738837, 0.701853, 0.170241),
+    1.401: (-1.252477, -0.475934, 0.674493, 0.697397, 0.663472, 0.181287),
+    2.0: (-1.082695, -0.604948, 0.616220, 0.643875, 0.613198, 0.200522),
+    3.0: (-0.880883, -0.669233, 0.543158, 0.573432, 0.551226, 0.235117),
+}
+
+
+def _tabulated_h2_sto3g(R: float) -> tuple[np.ndarray, np.ndarray, float]:
+    h00, h11, g0000, g1111, g0011, g0110 = _H2_STO3G_ORACLE_TABLE[R]
+    h1 = np.array([[h00, 0.0], [0.0, h11]], dtype=float)
+    h2 = np.zeros((2, 2, 2, 2), dtype=float)
+    h2[0, 0, 0, 0] = g0000
+    h2[1, 1, 1, 1] = g1111
+    h2[0, 0, 1, 1] = g0011
+    h2[1, 1, 0, 0] = g0011
+    for p, q, r, s in [(0, 1, 1, 0), (1, 0, 0, 1), (0, 1, 0, 1), (1, 0, 1, 0)]:
+        h2[p, q, r, s] = g0110
+    return h1, h2, 1.0 / R
+
+
 def test_h2_table_reproduced():
     # Phase 8: The table, reproduced
     # At R = 1.0, 1.401, 2.0, 3.0, the MO integrals from phase 7 match the
-    # h2_sto3g_integrals table to 1e-5, entry by entry.
+    # private oracle table to 1e-5, entry by entry.
     for R in [1.0, 1.401, 2.0, 3.0]:
         atoms = [(1.0, 1.24, [0.0, 0.0, 0.0]), (1.0, 1.24, [0.0, 0.0, R])]
         S, h, eri, v_nuc = ao_integrals(atoms)
         C = h2_symmetry_orbitals(S)
         h_mo, eri_mo = mo_transform(C, h, eri)
 
-        h1_tab, h2_tab, v_nuc_tab = h2_sto3g_integrals(R)
+        h1_tab, h2_tab, v_nuc_tab = _tabulated_h2_sto3g(R)
         assert np.isclose(v_nuc, v_nuc_tab, atol=1e-12)
         assert np.allclose(h_mo, h1_tab, atol=1e-5)
         assert np.allclose(eri_mo, h2_tab, atol=1e-5)
+
+
+def test_h2_sto3g_any_bond_length():
+    # Phase 9: Any bond length
+    # h2_sto3g_integrals(R) computes the integrals for any R > 0; R <= 0 raises ValueError.
+    import pytest
+
+    for bad_r in [0.0, -0.5, -1.401]:
+        with pytest.raises(ValueError):
+            h2_sto3g_integrals(bad_r)
+
+    for R in [0.75, 1.0, 1.25, 1.401, 1.75, 2.0, 2.5, 3.0]:
+        h1, h2, v_nuc = h2_sto3g_integrals(R)
+        assert h1.shape == (2, 2)
+        assert h2.shape == (2, 2, 2, 2)
+        assert np.isclose(v_nuc, 1.0 / R, atol=1e-15)
+        if R in _H2_STO3G_ORACLE_TABLE:
+            h1_tab, h2_tab, _ = _tabulated_h2_sto3g(R)
+            assert np.allclose(h1, h1_tab, atol=1e-5)
+            assert np.allclose(h2, h2_tab, atol=1e-5)
+
 
 
 

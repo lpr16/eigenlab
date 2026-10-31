@@ -11,6 +11,7 @@ from eigenlab.fermions import (
     jordan_wigner_adag,
 )
 from eigenlab.hamiltonian import Hamiltonian
+from eigenlab.integrals import ao_integrals, h2_symmetry_orbitals, mo_transform
 
 
 def integral_hamiltonian(
@@ -134,81 +135,34 @@ H_ATOM_STO3G_ENERGY = -0.466582
 def h2_sto3g_integrals(
     bond_length_au: float = 1.401,
 ) -> tuple[np.ndarray, np.ndarray, float]:
-    r"""Return STO-3G molecular integrals for H2 at specified bond length in bohr (a.u.).
+    r"""Return STO-3G molecular integrals for H2 at any positive bond length in bohr (a.u.).
 
     Parameters
     ----------
     bond_length_au : float
-        Internuclear distance R in atomic units (bohr). Supported geometries from
-        the Szabo & Ostlund (1996, Section 3.5 & Appendix D) / Whitfield et al. (2011)
-        / O'Malley et al. (2016) reference family:
-        - R = 1.0 a.u. (compressed/shorter bond)
-        - R = 1.401 a.u. (approx. 0.7414 Å, equilibrium bond length)
-        - R = 2.0 a.u. (stretched bond)
-        - R = 3.0 a.u. (stretched bond, dissociating toward isolated atoms)
+        Internuclear distance R > 0 in atomic units (bohr).
 
     Returns
     -------
     h1 : np.ndarray
-        Shape (2, 2) one-electron spatial orbital integrals in atomic units (Hartree).
+        Shape (2, 2) one-electron spatial orbital integrals in atomic units (Hartree),
+        in the symmetry-adapted minimal MO basis [sigma_g, sigma_u].
     h2 : np.ndarray
         Shape (2, 2, 2, 2) two-electron spatial orbital integrals in chemist notation (pq|rs).
     nuclear_repulsion : float
         Nuclear repulsion energy V_nuc = 1/R in Hartree.
     """
-    if np.isclose(bond_length_au, 1.401, atol=1e-3) or np.isclose(bond_length_au, 1.4, atol=1e-3):
-        # Equilibrium geometry: R = 1.401 a.u. (0.7414 Å)
-        v_nuc = 1.0 / float(bond_length_au)
-        h00 = -1.252477
-        h11 = -0.475934
-        g0000 = 0.674493
-        g1111 = 0.697397
-        g0011 = 0.663472
-        g0110 = 0.181287
-    elif np.isclose(bond_length_au, 1.0, atol=1e-3):
-        # Shorter / compressed bond: R = 1.0 a.u.
-        v_nuc = 1.0
-        h00 = -1.390219
-        h11 = -0.291653
-        g0000 = 0.714439
-        g1111 = 0.738837
-        g0011 = 0.701853
-        g0110 = 0.170241
-    elif np.isclose(bond_length_au, 2.0, atol=1e-3):
-        # Stretched bond: R = 2.0 a.u.
-        v_nuc = 0.5
-        h00 = -1.082695
-        h11 = -0.604948
-        g0000 = 0.616220
-        g1111 = 0.643875
-        g0011 = 0.613198
-        g0110 = 0.200522
-    elif np.isclose(bond_length_au, 3.0, atol=1e-3):
-        # Stretched bond: R = 3.0 a.u.
-        v_nuc = 1.0 / 3.0
-        h00 = -0.880883
-        h11 = -0.669233
-        g0000 = 0.543158
-        g1111 = 0.573432
-        g0011 = 0.551226
-        g0110 = 0.235117
-    else:
-        raise ValueError(
-            f"Unsupported bond length: {bond_length_au} a.u. Supported: 1.0, 1.401, 2.0, 3.0"
-        )
+    r_val = float(bond_length_au)
+    if r_val <= 0.0:
+        raise ValueError(f"bond_length_au must be positive, got {bond_length_au}")
 
-    h1 = np.zeros((2, 2), dtype=float)
-    h1[0, 0] = h00
-    h1[1, 1] = h11
-
-    h2 = np.zeros((2, 2, 2, 2), dtype=float)
-    h2[0, 0, 0, 0] = g0000
-    h2[1, 1, 1, 1] = g1111
-    h2[0, 0, 1, 1] = g0011
-    h2[1, 1, 0, 0] = g0011
-    for p, q, r, s in [(0, 1, 1, 0), (1, 0, 0, 1), (0, 1, 0, 1), (1, 0, 1, 0)]:
-        h2[p, q, r, s] = g0110
-
+    atoms = [
+        (1.0, 1.24, [0.0, 0.0, 0.0]),
+        (1.0, 1.24, [0.0, 0.0, r_val]),
+    ]
+    S, h, eri, v_nuc = ao_integrals(atoms)
+    C = h2_symmetry_orbitals(S)
+    h1, h2 = mo_transform(C, h, eri)
     return h1, h2, v_nuc
 
 
