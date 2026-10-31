@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass
 import math
+from typing import NamedTuple
 
 import numpy as np
 
@@ -250,6 +251,102 @@ def contracted_eri(
 
 
 contracted_electron_repulsion = contracted_eri
+
+
+class AOIntegrals(NamedTuple):
+    """Atomic-orbital integral bundle ``(S, h, eri, v_nuc)``."""
+
+    S: np.ndarray
+    h: np.ndarray
+    eri: np.ndarray
+    v_nuc: float
+
+    @property
+    def overlap(self) -> np.ndarray:
+        return self.S
+
+    @property
+    def core(self) -> np.ndarray:
+        return self.h
+
+    @property
+    def nuclear_repulsion(self) -> float:
+        return self.v_nuc
+
+
+def ao_integrals(
+    atoms: Sequence[tuple[float, float, Sequence[float] | np.ndarray | float]],
+) -> AOIntegrals:
+    """Compute STO-3G 1s atomic-orbital integrals ``(S, h, eri, V_nuc)`` for ``atoms``.
+
+    Each entry in ``atoms`` is ``(Z, zeta, position)``.
+    Returns ``AOIntegrals(S, h, eri, v_nuc)``, which unpacks as a 4-tuple
+    ``(S, h, eri, V_nuc)`` with ``h = T + V`` and ``V_nuc = sum_{i < j} Z_i Z_j / |R_i - R_j|``.
+    """
+    n = len(atoms)
+    if n == 0:
+        raise ValueError("atoms must be non-empty.")
+
+    charges: list[float] = []
+    centers: list[np.ndarray] = []
+    basis_fns: list[ContractedGaussian] = []
+
+    for z_val, zeta, pos in atoms:
+        c_vec = _as_center(pos)
+        charges.append(float(z_val))
+        centers.append(c_vec)
+        basis_fns.append(sto3g_1s(float(zeta), c_vec))
+
+    v_nuc = 0.0
+    for i in range(n):
+        for j in range(i + 1, n):
+            dist = float(np.linalg.norm(centers[i] - centers[j]))
+            if dist <= 1e-12:
+                raise ValueError(f"Atoms {i} and {j} coincide at {centers[i]}.")
+            v_nuc += charges[i] * charges[j] / dist
+
+    s_mat = np.zeros((n, n), dtype=float)
+    h_mat = np.zeros((n, n), dtype=float)
+    for i in range(n):
+        for j in range(i, n):
+            s_ij = contracted_overlap(basis_fns[i], basis_fns[j])
+            t_ij = contracted_kinetic(basis_fns[i], basis_fns[j])
+            v_ij = sum(
+                contracted_nuclear_attraction(basis_fns[i], basis_fns[j], charges[k], centers[k])
+                for k in range(n)
+            )
+            h_ij = t_ij + v_ij
+            s_mat[i, j] = s_mat[j, i] = s_ij
+            h_mat[i, j] = h_mat[j, i] = h_ij
+
+    eri = np.zeros((n, n, n, n), dtype=float)
+    computed: dict[tuple[tuple[int, int], tuple[int, int]], float] = {}
+    for p in range(n):
+        for q in range(p, n):
+            pair_pq = (p, q)
+            for r in range(n):
+                for s in range(r, n):
+                    pair_rs = (r, s)
+                    canon = (pair_pq, pair_rs) if pair_pq <= pair_rs else (pair_rs, pair_pq)
+                    if canon not in computed:
+                        computed[canon] = contracted_eri(
+                            basis_fns[p], basis_fns[q], basis_fns[r], basis_fns[s]
+                        )
+                    val = computed[canon]
+                    for idx in (
+                        (p, q, r, s),
+                        (q, p, r, s),
+                        (p, q, s, r),
+                        (q, p, s, r),
+                        (r, s, p, q),
+                        (s, r, p, q),
+                        (r, s, q, p),
+                        (s, r, q, p),
+                    ):
+                        eri[idx] = val
+
+    return AOIntegrals(S=s_mat, h=h_mat, eri=eri, v_nuc=v_nuc)
+
 
 
 

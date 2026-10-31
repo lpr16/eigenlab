@@ -3,6 +3,7 @@ import numpy as np
 from eigenlab.integrals import (
     STO3G_1S_COEFFICIENTS,
     STO3G_1S_EXPONENTS,
+    ao_integrals,
     boys0,
     contracted_eri,
     contracted_kinetic,
@@ -232,6 +233,55 @@ def test_electron_repulsion_integral():
     assert np.isclose(contracted_eri(chi_2, chi_2, chi_1, chi_1), 0.605703, atol=1e-5)
     assert np.isclose(contracted_eri(chi_2, chi_2, chi_2, chi_1), 0.311795, atol=1e-5)
     assert np.isclose(contracted_eri(chi_2, chi_2, chi_2, chi_2), 0.774608, atol=1e-5)
+
+
+def test_ao_integrals_bundle_heh():
+    # Phase 6: The AO bundle
+    # For HeH+ at R = 1.4632 (Z_He = 2, ζ_He = 2.0925; Z_H = 1, ζ_H = 1.24),
+    # every transcribed number from phases 2–5 comes out of a single ao_integrals call.
+    R = 1.4632
+    atoms = [
+        (2.0, 2.0925, [0.0, 0.0, 0.0]),
+        (1.0, 1.24, [0.0, 0.0, R]),
+    ]
+    S, h, eri, v_nuc = ao_integrals(atoms)
+
+    # Symmetry checks
+    assert S.shape == (2, 2)
+    assert h.shape == (2, 2)
+    assert eri.shape == (2, 2, 2, 2)
+    assert np.allclose(S, S.T, atol=1e-15)
+    assert np.allclose(h, h.T, atol=1e-15)
+    for p in range(2):
+        for q in range(2):
+            for r in range(2):
+                for s in range(2):
+                    val = eri[p, q, r, s]
+                    assert np.isclose(eri[q, p, r, s], val, atol=1e-15)
+                    assert np.isclose(eri[p, q, s, r], val, atol=1e-15)
+                    assert np.isclose(eri[r, s, p, q], val, atol=1e-15)
+
+    # Nuclear repulsion V_nuc = 2 / R
+    assert np.isclose(v_nuc, 2.0 / R, atol=1e-15)
+
+    # Overlap S_11 = S_22 = 1, S_12 = 0.450770
+    assert np.isclose(S[0, 0], 1.0, atol=1e-5)
+    assert np.isclose(S[1, 1], 1.0, atol=1e-5)
+    assert np.isclose(S[0, 1], 0.450770, atol=1e-5)
+
+    # Core Hamiltonian h_11 = -2.652744, h_12 = -1.347205, h_22 = -1.731828
+    assert np.isclose(h[0, 0], -2.652744, atol=1e-5)
+    assert np.isclose(h[0, 1], -1.347205, atol=1e-5)
+    assert np.isclose(h[1, 1], -1.731828, atol=1e-5)
+
+    # Six unique two-electron integrals in chemist notation
+    assert np.isclose(eri[0, 0, 0, 0], 1.307152, atol=1e-5)
+    assert np.isclose(eri[1, 0, 0, 0], 0.437279, atol=1e-5)
+    assert np.isclose(eri[1, 0, 1, 0], 0.177267, atol=1e-5)
+    assert np.isclose(eri[1, 1, 0, 0], 0.605703, atol=1e-5)
+    assert np.isclose(eri[1, 1, 1, 0], 0.311795, atol=1e-5)
+    assert np.isclose(eri[1, 1, 1, 1], 0.774608, atol=1e-5)
+
 
 
 
