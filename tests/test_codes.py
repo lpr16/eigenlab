@@ -4,6 +4,9 @@ from eigenlab.codes import (
     BIT_FLIP_STABILIZERS,
     FIVE_QUBIT_STABILIZERS,
     PHASE_FLIP_STABILIZERS,
+    STEANE_STABILIZERS,
+    STEANE_X_GENERATORS,
+    STEANE_Z_GENERATORS,
     bit_flip_channel,
     code_distance,
     code_projector,
@@ -18,6 +21,7 @@ from eigenlab.codes import (
     single_qubit_paulis,
     stabilizer_group,
     stabilizers_commute,
+    steane_logical_states,
     transversal_clifford,
     weight_k_paulis,
 )
@@ -228,6 +232,50 @@ def test_knill_laflamme():
     c_fail = np.trace(block_fail) / 2.0
     assert np.isclose(c_fail, 0.0, atol=1e-12)
     assert not np.allclose(block_fail, c_fail * P_bf, atol=1e-6)
+
+
+def test_steane_code():
+    # Phase 31: The Steane code
+    # Seven qubits; X-type and Z-type generators from rows 0001111, 0110011, 1010101.
+    assert STEANE_X_GENERATORS == ("IIIXXXX", "IXXIIXX", "XIXIXIX")
+    assert STEANE_Z_GENERATORS == ("IIIZZZZ", "IZZIIZZ", "ZIZIZIZ")
+    assert STEANE_STABILIZERS == (
+        "IIIXXXX",
+        "IXXIIXX",
+        "XIXIXIX",
+        "IIIZZZZ",
+        "IZZIIZZ",
+        "ZIZIZIZ",
+    )
+
+    # All six generators commute, and the code space has rank 2
+    assert stabilizers_commute(STEANE_STABILIZERS)
+    proj = code_projector(STEANE_STABILIZERS)
+    assert np.allclose(proj @ proj, proj, atol=1e-12)
+    assert np.isclose(np.real(np.trace(proj)), 2.0, atol=1e-12)
+    assert np.linalg.matrix_rank(proj, tol=1e-10) == 2
+
+    # Transversal H maps the stabilizer group to itself, swapping X-type and Z-type generators
+    assert tuple(transversal_clifford(g, "H")[1] for g in STEANE_X_GENERATORS) == STEANE_Z_GENERATORS
+    assert tuple(transversal_clifford(g, "H")[1] for g in STEANE_Z_GENERATORS) == STEANE_X_GENERATORS
+    group = stabilizer_group(STEANE_STABILIZERS)
+    assert len(group) == 64
+    assert {transversal_clifford(g, "H")[1] for g in group} == group
+
+    # H^{⊗7} acts on the code as logical H, sending |0_L⟩ to |+_L⟩
+    zero_L, one_L, plus_L = steane_logical_states()
+    assert np.allclose(proj @ zero_L, zero_L, atol=1e-12)
+    assert np.allclose(proj @ one_L, one_L, atol=1e-12)
+    assert np.allclose(apply_pauli("ZZZZZZZ", zero_L), zero_L, atol=1e-12)
+    assert np.allclose(apply_pauli("ZZZZZZZ", one_L), -one_L, atol=1e-12)
+    assert np.allclose(apply_pauli("XXXXXXX", plus_L), plus_L, atol=1e-12)
+
+    h_1 = np.array([[1.0, 1.0], [1.0, -1.0]], dtype=complex) / np.sqrt(2.0)
+    h_7 = h_1
+    for _ in range(6):
+        h_7 = np.kron(h_7, h_1)
+    assert np.allclose(h_7 @ zero_L, plus_L, atol=1e-12)
+
 
 
 

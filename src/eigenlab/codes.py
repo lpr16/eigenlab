@@ -283,10 +283,35 @@ def knill_laflamme(
     return satisfied, c_mat
 
 
+STEANE_HAMMING_ROWS: tuple[str, str, str] = ("0001111", "0110011", "1010101")
+STEANE_X_GENERATORS: tuple[str, str, str] = tuple(
+    "".join("X" if bit == "1" else "I" for bit in row) for row in STEANE_HAMMING_ROWS
+)  # type: ignore[assignment]
+STEANE_Z_GENERATORS: tuple[str, str, str] = tuple(
+    "".join("Z" if bit == "1" else "I" for bit in row) for row in STEANE_HAMMING_ROWS
+)  # type: ignore[assignment]
+STEANE_STABILIZERS: tuple[str, ...] = STEANE_X_GENERATORS + STEANE_Z_GENERATORS
+
+
+def steane_logical_states() -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Return ``(|0_L>, |1_L>, |+_L>)`` for the 7-qubit Steane code."""
+    ket = basis(0, 7)
+    for g_x in STEANE_X_GENERATORS:
+        ket = (ket + apply_pauli(g_x, ket)) / np.sqrt(2.0)
+    zero_L = ket / np.linalg.norm(ket)
+    one_L = apply_pauli("XXXXXXX", zero_L)
+    plus_L = (zero_L + one_L) / np.sqrt(2.0)
+    return zero_L, one_L, plus_L
+
+
 __all__ = [
     "BIT_FLIP_STABILIZERS",
     "FIVE_QUBIT_STABILIZERS",
     "PHASE_FLIP_STABILIZERS",
+    "STEANE_HAMMING_ROWS",
+    "STEANE_STABILIZERS",
+    "STEANE_X_GENERATORS",
+    "STEANE_Z_GENERATORS",
     "apply_pauli",
     "bit_flip_channel",
     "code_distance",
@@ -304,6 +329,7 @@ __all__ = [
     "single_qubit_paulis",
     "stabilizer_group",
     "stabilizers_commute",
+    "steane_logical_states",
     "syndrome_projector",
     "transversal_clifford",
     "weight_k_paulis",
