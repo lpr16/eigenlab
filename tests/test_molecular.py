@@ -473,6 +473,32 @@ def test_h4_orbitals_and_encodings_do_not_move_fci():
     assert np.allclose(spec_jw, spec_bk, atol=1e-8)
 
 
+def test_h4_two_far_molecules():
+    # Phase 21: Two far molecules (a = 1.401 bond, b = 20 separation)
+    # Full CI in N = 4 is twice the H2 FCI energy at R = 1.401 to 1e-6,
+    # and RHF is twice the H2 RHF energy at R = 1.401 to 1e-6 (size consistency).
+    from eigenlab.integrals import ao_integrals, rhf
+
+    a, b = 1.401, 20.0
+    h_h4 = h4_sto3g_hamiltonian(a, b)
+    e_fci_h4 = float(np.linalg.eigvalsh(occupation_block(h_h4, n_particles=4))[0])
+    e_fci_h2 = float(spectrum(h2_sto3g_hamiltonian(a))[0])
+    assert np.isclose(e_fci_h4, 2.0 * e_fci_h2, atol=1e-6)
+
+    atoms_h4 = [
+        (1.0, 1.24, [-0.5 * a, -0.5 * b, 0.0]),
+        (1.0, 1.24, [-0.5 * a, 0.5 * b, 0.0]),
+        (1.0, 1.24, [0.5 * a, -0.5 * b, 0.0]),
+        (1.0, 1.24, [0.5 * a, 0.5 * b, 0.0]),
+    ]
+    e_rhf_h4 = rhf(ao_integrals(atoms_h4), n_electrons=4).energy
+
+    atoms_h2 = [(1.0, 1.24, [0.0, 0.0, 0.0]), (1.0, 1.24, [0.0, 0.0, a])]
+    e_rhf_h2 = rhf(ao_integrals(atoms_h2), n_electrons=2).energy
+    assert np.isclose(e_rhf_h4, 2.0 * e_rhf_h2, atol=1e-6)
+
+
+
 
 
 
