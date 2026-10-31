@@ -250,6 +250,39 @@ def code_distance(generators: Sequence[str]) -> int:
     raise ValueError("No nontrivial logical operators found.")
 
 
+def knill_laflamme(
+    projector_or_stabilizers: np.ndarray | Sequence[str],
+    errors: Sequence[str | np.ndarray],
+    tol: float = 1e-10,
+) -> tuple[bool, np.ndarray]:
+    """Check the Knill-Laflamme condition ``P E_a^dag E_b P = c_ab P`` with ``c_ab = Tr(P E_a^dag E_b P) / 2``.
+
+    Returns ``(satisfied, c_matrix)``.
+    """
+    if isinstance(projector_or_stabilizers, np.ndarray):
+        proj = np.asarray(projector_or_stabilizers, dtype=complex)
+    else:
+        proj = code_projector(projector_or_stabilizers)
+
+    err_mats = [
+        pauli(e) if isinstance(e, str) else np.asarray(e, dtype=complex)
+        for e in errors
+    ]
+    pe_mats = [e_mat @ proj for e_mat in err_mats]
+    m = len(err_mats)
+    c_mat = np.zeros((m, m), dtype=complex)
+    satisfied = True
+    for a in range(m):
+        pe_a_dag = pe_mats[a].conj().T
+        for b in range(m):
+            block = pe_a_dag @ pe_mats[b]
+            c_ab = np.trace(block) / 2.0
+            c_mat[a, b] = c_ab
+            if np.linalg.norm(block - c_ab * proj) > tol:
+                satisfied = False
+    return satisfied, c_mat
+
+
 __all__ = [
     "BIT_FLIP_STABILIZERS",
     "FIVE_QUBIT_STABILIZERS",
@@ -263,6 +296,7 @@ __all__ = [
     "encode_bit_flip",
     "encode_phase_flip",
     "error_syndrome",
+    "knill_laflamme",
     "pauli_comm",
     "pauli_mult",
     "phase_flip_channel",

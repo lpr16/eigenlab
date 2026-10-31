@@ -12,6 +12,7 @@ from eigenlab.codes import (
     encode_bit_flip,
     encode_phase_flip,
     error_syndrome,
+    knill_laflamme,
     phase_flip_channel,
     phase_flip_stabilizers,
     single_qubit_paulis,
@@ -198,6 +199,36 @@ def test_five_qubit_code_distance_three():
     assert "IYYIX" in w3_logicals
     assert len(w3_logicals) > 0
     assert code_distance(FIVE_QUBIT_STABILIZERS) == 3
+
+
+def test_knill_laflamme():
+    # Phase 30: Knill-Laflamme
+    # For the five-qubit code and E over I and the 15 single-qubit Paulis,
+    # P E_a† E_b P = c_ab P for all 256 pairs, with c_ab = Tr(P E_a† E_b P) / 2.
+    P_5 = code_projector(FIVE_QUBIT_STABILIZERS)
+    errors_5 = ["IIIII"] + single_qubit_paulis(5)
+    assert len(errors_5) == 16
+
+    ok_5, c_5 = knill_laflamme(P_5, errors_5)
+    assert ok_5
+    # Because the 16 syndromes are distinct, P E_a† E_b P = δ_ab P (degenerate/orthogonal syndromes)
+    assert np.allclose(c_5, np.eye(16), atol=1e-12)
+
+    # For the bit-flip code with E over I and single-qubit X and Z, the condition fails,
+    # e.g. on the pair ("III", "ZII") where P ZII P = |000⟩⟨000| − |111⟩⟨111| != c P (c = 0).
+    P_bf = code_projector(BIT_FLIP_STABILIZERS)
+    errors_bf = ["III", "XII", "IXI", "IIX", "ZII", "IZI", "IIZ"]
+    ok_bf, _ = knill_laflamme(P_bf, errors_bf)
+    assert not ok_bf
+
+    # Named failing pair: E_a = "III", E_b = "ZII"
+    e_a = pauli("III")
+    e_b = pauli("ZII")
+    block_fail = P_bf @ e_a.conj().T @ e_b @ P_bf
+    c_fail = np.trace(block_fail) / 2.0
+    assert np.isclose(c_fail, 0.0, atol=1e-12)
+    assert not np.allclose(block_fail, c_fail * P_bf, atol=1e-6)
+
 
 
 
