@@ -7,6 +7,7 @@ from eigenlab.fermions import (
 )
 from eigenlab.hamiltonian import eigensystem, spectrum
 from eigenlab.molecular import (
+    h2_electrostatic_hellmann_feynman,
     h2_energy_gradient,
     h2_sto3g_hamiltonian,
     h2_sto3g_integrals,
@@ -351,6 +352,19 @@ def test_h2_energy_gradient_and_matrix_hellmann_feynman():
         hf_deriv = float(np.real( np.vdot(psi, dh_dr @ psi) ))
         grad = h2_energy_gradient(R, step=h)
         assert np.isclose(hf_deriv, grad, atol=1e-6)
+
+
+def test_h2_pulay_term():
+    # Phase 16: The Pulay term
+    # Electrostatic Hellmann-Feynman derivative (frozen basis, moving nuclei) vs total gradient
+    # at R = 1.401 differ by more than 1e-3 because the incomplete STO-3G basis rides with the nuclei.
+    R = 1.401
+    grad_total = h2_energy_gradient(R)
+    force_ehf = h2_electrostatic_hellmann_feynman(R)
+    pulay = grad_total - force_ehf
+    print(f"R = {R}: total dE/dR = {grad_total:.8f}, electrostatic HF = {force_ehf:.8f}, Pulay = {pulay:.8f}")
+    assert abs(grad_total - force_ehf) > 1e-3
+
 
 
 

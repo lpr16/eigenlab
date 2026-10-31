@@ -10,8 +10,16 @@ from eigenlab.fermions import (
     jordan_wigner_a,
     jordan_wigner_adag,
 )
-from eigenlab.hamiltonian import Hamiltonian, spectrum
-from eigenlab.integrals import ao_integrals, h2_symmetry_orbitals, lowdin, mo_transform, rhf
+from eigenlab.hamiltonian import Hamiltonian, eigensystem, spectrum
+from eigenlab.integrals import (
+    ao_integrals,
+    contracted_nuclear_attraction,
+    h2_symmetry_orbitals,
+    lowdin,
+    mo_transform,
+    rhf,
+    sto3g_1s,
+)
 
 
 def integral_hamiltonian(
@@ -188,6 +196,45 @@ def h2_energy_gradient(R: float, step: float = 1e-4) -> float:
     e_plus = float(spectrum(h2_sto3g_hamiltonian(r_val + h_val))[0])
     e_minus = float(spectrum(h2_sto3g_hamiltonian(r_val - h_val))[0])
     return (e_plus - e_minus) / (2.0 * h_val)
+
+
+def h2_electrostatic_hellmann_feynman(R: float = 1.401, step: float = 1e-4) -> float:
+    """Electrostatic Hellmann-Feynman derivative d<V_ne + V_nn>/dR with the STO-3G basis frozen at R."""
+    r_val = float(R)
+    h_val = float(step)
+    if h_val <= 0.0 or r_val - h_val <= 0.0:
+        raise ValueError(f"Require R > step > 0, got R={R}, step={step}")
+
+    # Basis functions and MO coefficients frozen at R
+    r0 = np.array([0.0, 0.0, 0.0])
+    r1 = np.array([0.0, 0.0, r_val])
+    chi0 = sto3g_1s(1.24, r0)
+    chi1 = sto3g_1s(1.24, r1)
+    basis_fns = [chi0, chi1]
+
+    ao = ao_integrals([(1.0, 1.24, r0), (1.0, 1.24, r1)])
+    c_mat = h2_symmetry_orbitals(ao.S)
+    _, evecs = eigensystem(h2_sto3g_hamiltonian(r_val))
+    psi = evecs[:, 0]
+
+    def v_ne_ao(r_nuc: float) -> np.ndarray:
+        centers = [np.array([0.0, 0.0, 0.0]), np.array([0.0, 0.0, r_nuc])]
+        v_mat = np.zeros((2, 2), dtype=float)
+        for i in range(2):
+            for j in range(i, 2):
+                val = sum(
+                    contracted_nuclear_attraction(basis_fns[i], basis_fns[j], 1.0, c_k)
+                    for c_k in centers
+                )
+                v_mat[i, j] = v_mat[j, i] = val
+        return v_mat
+
+    dv_ne_ao = (v_ne_ao(r_val + h_val) - v_ne_ao(r_val - h_val)) / (2.0 * h_val)
+    dv_ne_mo = c_mat.T @ dv_ne_ao @ c_mat
+    dv_ne_spin, zero_h2 = spatial_to_spin_orbital(dv_ne_mo, np.zeros((2, 2, 2, 2)))
+    dv_nn = (1.0 / (r_val + h_val) - 1.0 / (r_val - h_val)) / (2.0 * h_val)
+    dh_frozen = integral_hamiltonian(dv_ne_spin, zero_h2, nuclear_repulsion=dv_nn)
+    return float(dh_frozen.expectation(psi))
 
 
 def heh_sto3g_integrals(
