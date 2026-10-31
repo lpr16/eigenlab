@@ -455,6 +455,25 @@ def test_h4_rectangle_integrals_and_hamiltonian():
     assert np.allclose(block_4, block_4.conj().T, atol=1e-12)
 
 
+def test_h4_orbitals_and_encodings_do_not_move_fci():
+    # Phase 20: Orbitals do not move full CI
+    # At a = 1.401, b = 2.0, the N = 4 ground energy from Löwdin orbitals equals
+    # the one from RHF orbitals to 1e-8, and full JW and BK spectra match to 1e-8.
+    a, b = 1.401, 2.0
+    h_low = h4_sto3g_hamiltonian(a, b, mapping="jordan_wigner", orbitals="lowdin")
+    h_rhf = h4_sto3g_hamiltonian(a, b, mapping="jordan_wigner", orbitals="rhf")
+
+    e_low_n4 = float(np.linalg.eigvalsh(occupation_block(h_low, n_particles=4))[0])
+    e_rhf_n4 = float(np.linalg.eigvalsh(occupation_block(h_rhf, n_particles=4))[0])
+    assert np.isclose(e_low_n4, e_rhf_n4, atol=1e-8)
+
+    h_bk = h4_sto3g_hamiltonian(a, b, mapping="bravyi_kitaev", orbitals="lowdin")
+    spec_jw = spectrum(h_low)
+    spec_bk = spectrum(h_bk)
+    assert np.allclose(spec_jw, spec_bk, atol=1e-8)
+
+
+
 
 
 
