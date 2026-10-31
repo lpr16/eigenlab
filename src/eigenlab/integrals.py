@@ -85,3 +85,36 @@ def contracted_overlap(chi_a: ContractedGaussian, chi_b: ContractedGaussian) -> 
             total += ca * cb * gaussian_overlap(aa, chi_a.center, ab, chi_b.center)
     return total
 
+
+def gaussian_kinetic(
+    a: float,
+    A: Sequence[float] | np.ndarray | float,
+    b: float,
+    B: Sequence[float] | np.ndarray | float,
+) -> float:
+    """Kinetic-energy integral T = <a| -1/2 nabla^2 |b> between two normalized s primitives.
+
+    With p = a + b, mu = a * b / p, and overlap S:
+        T = mu (3 - 2 mu |A - B|^2) S
+    """
+    if a <= 0.0 or b <= 0.0:
+        raise ValueError("Gaussian exponents must be positive.")
+    vec_a = _as_center(A)
+    vec_b = _as_center(B)
+    diff = vec_a - vec_b
+    r2 = float(np.dot(diff, diff))
+    p = float(a + b)
+    mu = float(a * b) / p
+    s = gaussian_overlap(a, vec_a, b, vec_b)
+    return mu * (3.0 - 2.0 * mu * r2) * s
+
+
+def contracted_kinetic(chi_a: ContractedGaussian, chi_b: ContractedGaussian) -> float:
+    """Kinetic-energy integral between two contracted s-type Gaussians."""
+    total = 0.0
+    for ca, aa in zip(chi_a.coefficients, chi_a.exponents):
+        for cb, ab in zip(chi_b.coefficients, chi_b.exponents):
+            total += ca * cb * gaussian_kinetic(aa, chi_a.center, ab, chi_b.center)
+    return total
+
+

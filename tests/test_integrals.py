@@ -3,7 +3,9 @@ import numpy as np
 from eigenlab.integrals import (
     STO3G_1S_COEFFICIENTS,
     STO3G_1S_EXPONENTS,
+    contracted_kinetic,
     contracted_overlap,
+    gaussian_kinetic,
     gaussian_overlap,
     sto3g_1s,
 )
@@ -81,4 +83,43 @@ def test_sto3g_1s_contraction():
     chi_h = sto3g_1s(1.24, [0.0, 0.0, R])
     s_12 = contracted_overlap(chi_he, chi_h)
     assert np.isclose(s_12, 0.450770, atol=1e-5)
+
+
+def test_kinetic_energy_integral():
+    # Phase 3: Kinetic energy integral for s primitives and STO-3G contractions
+    # Algebra:
+    #   −½ ∇² exp(−b|r − B|²) = b (3 − 2b|r − B|²) exp(−b|r − B|²).
+    # In the Gaussian product centre P = (aA + bB)/p with p = a + b and μ = ab/p,
+    #   r − B = (r − P) + (a/p)(A − B),
+    #   ⟨|r − P|²⟩_P = 3 / (2p), ⟨r − P⟩_P = 0, so ⟨|r − B|²⟩_P = 3/(2p) + (a²/p²)|A − B|².
+    # Hence:
+    #   T = b [ 3 − 2b (3/(2p) + (a²/p²)|A − B|²) ] S
+    #     = [ 3ab/p − 2(ab/p)² |A − B|² ] S
+    #     = μ (3 − 2μ|A − B|²) S.
+    # For one normalized primitive at one centre (a = b, A = B):
+    #   S = 1, μ = a² / (2a) = a / 2, |A − B|² = 0  ==>  T = 3 μ = 3a / 2.
+
+    for a in [0.15, 0.5, 1.0, 2.22766, 4.5]:
+        for center in [[0.0, 0.0, 0.0], [1.1, -0.4, 2.3]]:
+            assert np.isclose(gaussian_kinetic(a, center, a, center), 1.5 * a, atol=1e-14)
+
+    # Check two distinct primitives against the formula and symmetry
+    a, b = 0.405771, 1.35
+    A = np.array([0.2, -0.3, 0.1])
+    B = np.array([-0.5, 0.4, 1.2])
+    p = a + b
+    mu = a * b / p
+    r2 = float(np.sum((A - B) ** 2))
+    s = gaussian_overlap(a, A, b, B)
+    expected_t = mu * (3.0 - 2.0 * mu * r2) * s
+    assert np.isclose(gaussian_kinetic(a, A, b, B), expected_t, atol=1e-15)
+    assert np.isclose(gaussian_kinetic(a, A, b, B), gaussian_kinetic(b, B, a, A), atol=1e-15)
+
+    # Contracted kinetic integral is symmetric and positive on the diagonal
+    chi_he = sto3g_1s(2.0925, [0.0, 0.0, 0.0])
+    chi_h = sto3g_1s(1.24, [0.0, 0.0, 1.4632])
+    assert contracted_kinetic(chi_he, chi_he) > 0.0
+    assert contracted_kinetic(chi_h, chi_h) > 0.0
+    assert np.isclose(contracted_kinetic(chi_he, chi_h), contracted_kinetic(chi_h, chi_he), atol=1e-15)
+
 
