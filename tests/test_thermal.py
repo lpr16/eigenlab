@@ -11,6 +11,7 @@ from eigenlab.thermal import (
     kitaev_partition_function,
     partition_function,
     trace_distance,
+    von_neumann_entropy,
 )
 
 
@@ -78,4 +79,33 @@ def test_ising_and_kitaev_partition_function_from_modes():
                 atol=0.0,
             )
             assert np.isclose(bdg_partition_function(bdg_kit, beta), z_kit_exact, rtol=1e-8, atol=0.0)
+
+
+def test_thermodynamics_consistently():
+    # Phase 34: Thermodynamics, consistently
+    # For transverse_ising(4, 1, 0.7) at β = 1.3:
+    # - U = −∂ ln Z / ∂β (central difference step 1e-5) equals Tr(ρ H) to 1e-8.
+    # - With F = −ln Z / β, β(U − F) in nats equals von_neumann_entropy(gibbs(H, β)) · ln 2 to 1e-8.
+    H = transverse_ising(4, 1.0, 0.7)
+    beta = 1.3
+    step = 1e-5
+
+    rho = gibbs(H, beta)
+    u_trace = float(np.real(np.trace(rho @ H)))
+
+    ln_z_plus = np.log(partition_function(H, beta + step))
+    ln_z_minus = np.log(partition_function(H, beta - step))
+    u_diff = -(ln_z_plus - ln_z_minus) / (2.0 * step)
+    assert np.isclose(u_diff, u_trace, atol=1e-8)
+
+    ln_z = np.log(partition_function(H, beta))
+    f_free = -ln_z / beta
+    s_nats = beta * (u_trace - f_free)
+    s_vne_bits = von_neumann_entropy(rho)
+    assert np.isclose(s_nats, s_vne_bits * np.log(2.0), atol=1e-8)
+
+    # Pure state has 0 bits; maximally mixed 1-qubit state I/2 has 1 bit
+    assert von_neumann_entropy(np.array([1.0, 0.0])) == 0.0
+    assert np.isclose(von_neumann_entropy(np.eye(2) / 2.0), 1.0, atol=1e-12)
+
 

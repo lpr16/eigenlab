@@ -83,6 +83,32 @@ def kitaev_partition_function(
     )
 
 
+def von_neumann_entropy(rho: np.ndarray) -> float:
+    """Return the von Neumann entropy ``S(rho) = -Tr(rho log2 rho)`` in bits."""
+    mat = np.asarray(rho, dtype=complex)
+    if mat.ndim == 1:
+        norm = np.linalg.norm(mat)
+        if norm == 0:
+            raise ValueError("state has zero norm")
+        return 0.0
+    if mat.ndim != 2 or mat.shape[0] != mat.shape[1]:
+        raise ValueError(f"Expected square density matrix, got shape {mat.shape}")
+    if not np.allclose(mat, mat.conj().T, atol=1e-10):
+        raise ValueError("Density matrix must be Hermitian.")
+    tr = float(np.real(np.trace(mat)))
+    if tr <= 0.0:
+        raise ValueError("Density matrix must have positive trace.")
+    mat = mat / tr
+    evals = np.linalg.eigvalsh(mat)
+    if np.any(evals < -1e-10):
+        raise ValueError("Density matrix must be positive semidefinite.")
+    pos = evals[evals > 1e-15]
+    ent = float(-np.sum(pos * np.log2(pos)))
+    if abs(ent) < 1e-14:
+        return 0.0
+    return ent
+
+
 __all__ = [
     "bdg_partition_function",
     "gibbs",
@@ -90,4 +116,5 @@ __all__ = [
     "kitaev_partition_function",
     "partition_function",
     "trace_distance",
+    "von_neumann_entropy",
 ]

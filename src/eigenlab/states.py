@@ -420,3 +420,11 @@ def relative_entropy(rho: np.ndarray, sigma: np.ndarray) -> float:
     if abs(val) < 1e-14:
         return 0.0
     return float(val)
+
+
+def von_neumann_entropy(rho: np.ndarray) -> float:
+    """Return the von Neumann entropy ``S(rho) = -Tr(rho log2 rho)`` in bits."""
+    from eigenlab.thermal import von_neumann_entropy as _vne
+
+    return _vne(rho)
+
