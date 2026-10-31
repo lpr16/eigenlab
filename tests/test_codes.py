@@ -2,6 +2,7 @@ import numpy as np
 
 from eigenlab.codes import (
     BIT_FLIP_STABILIZERS,
+    FIVE_QUBIT_STABILIZERS,
     PHASE_FLIP_STABILIZERS,
     bit_flip_channel,
     code_projector,
@@ -12,6 +13,7 @@ from eigenlab.codes import (
     error_syndrome,
     phase_flip_channel,
     phase_flip_stabilizers,
+    single_qubit_paulis,
     stabilizer_group,
     stabilizers_commute,
     transversal_clifford,
@@ -139,5 +141,26 @@ def test_phase_flip_code():
     bf_phase_flipped = encode_bit_flip(np.array([alpha, -beta]))
     assert np.allclose(apply_pauli("ZII", bf_psi), bf_phase_flipped, atol=1e-12)
     assert np.allclose(correct_bit_flip(apply_pauli("ZII", bf_psi)), density(bf_phase_flipped), atol=1e-12)
+
+
+def test_five_qubit_code():
+    # Phase 28: The five-qubit code
+    # Generators XZZXI, IXZZX, XIXZZ, ZXIXZ commute pairwise, and the code space has rank 2.
+    assert FIVE_QUBIT_STABILIZERS == ("XZZXI", "IXZZX", "XIXZZ", "ZXIXZ")
+    assert stabilizers_commute(FIVE_QUBIT_STABILIZERS)
+
+    proj = code_projector(FIVE_QUBIT_STABILIZERS)
+    assert np.allclose(proj @ proj, proj, atol=1e-12)
+    assert np.isclose(np.real(np.trace(proj)), 2.0, atol=1e-12)
+    assert np.linalg.matrix_rank(proj, tol=1e-10) == 2
+
+    # Identity + 15 single-qubit Paulis give 16 distinct syndromes (all 2^4 of them).
+    paulis_1q = single_qubit_paulis(5)
+    assert len(paulis_1q) == 15
+    errors = ["IIIII"] + paulis_1q
+    syndromes = [error_syndrome(e, FIVE_QUBIT_STABILIZERS) for e in errors]
+    assert len(syndromes) == 16
+    assert len(set(syndromes)) == 16
+
 
 

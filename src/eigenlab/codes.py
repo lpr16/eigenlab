@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+import itertools
 
 import numpy as np
 
@@ -212,8 +213,33 @@ def correct_phase_flip(rho: np.ndarray) -> np.ndarray:
     return out
 
 
+FIVE_QUBIT_STABILIZERS: tuple[str, str, str, str] = ("XZZXI", "IXZZX", "XIXZZ", "ZXIXZ")
+
+
+def weight_k_paulis(n: int, k: int) -> list[str]:
+    """Return all n-qubit Pauli labels of weight ``k`` (number of non-I characters)."""
+    if not 0 <= k <= n:
+        raise ValueError(f"Weight k={k} must satisfy 0 <= k <= n={n}")
+    if k == 0:
+        return ["I" * n]
+    labels: list[str] = []
+    for positions in itertools.combinations(range(n), k):
+        for chars in itertools.product(("X", "Y", "Z"), repeat=k):
+            arr = ["I"] * n
+            for pos, ch in zip(positions, chars):
+                arr[pos] = ch
+            labels.append("".join(arr))
+    return labels
+
+
+def single_qubit_paulis(n: int) -> list[str]:
+    """Return all 3n single-qubit Pauli labels on n qubits."""
+    return weight_k_paulis(n, 1)
+
+
 __all__ = [
     "BIT_FLIP_STABILIZERS",
+    "FIVE_QUBIT_STABILIZERS",
     "PHASE_FLIP_STABILIZERS",
     "apply_pauli",
     "bit_flip_channel",
@@ -227,8 +253,10 @@ __all__ = [
     "pauli_mult",
     "phase_flip_channel",
     "phase_flip_stabilizers",
+    "single_qubit_paulis",
     "stabilizer_group",
     "stabilizers_commute",
     "syndrome_projector",
     "transversal_clifford",
+    "weight_k_paulis",
 ]
