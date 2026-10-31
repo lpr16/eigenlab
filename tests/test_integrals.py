@@ -501,6 +501,47 @@ def test_heh_sto3g_from_integrals():
             heh_sto3g_integrals(bad_r)
 
 
+def test_h2_rhf_is_symmetry_orbitals_and_fci_basis_invariance():
+    # Phase 13: H2 RHF is the symmetry orbitals
+    from eigenlab.hamiltonian import spectrum
+    from eigenlab.molecular import (
+        h2_sto3g_hamiltonian,
+        integral_hamiltonian,
+        spatial_to_spin_orbital,
+    )
+    from eigenlab.states import basis
+
+    phi_hf = basis(0b1100, 4)  # spin-orbitals 0 (σ_g ↑) and 1 (σ_g ↓) filled
+
+    for R in [1.0, 1.401, 2.0, 3.0]:
+        ao = ao_integrals([(1.0, 1.24, [0.0, 0.0, 0.0]), (1.0, 1.24, [0.0, 0.0, R])])
+        e_rhf, _, C_rhf, _ = rhf(ao, n_electrons=2)
+        C_sym = h2_symmetry_orbitals(ao.S)
+
+        # 1. rhf returns σ_g and σ_u up to sign, to 1e-8
+        for col in range(2):
+            sign = 1.0 if np.dot(C_rhf[:, col], C_sym[:, col]) >= 0.0 else -1.0
+            assert np.allclose(sign * C_rhf[:, col], C_sym[:, col], atol=1e-8)
+
+        # 2. RHF energy equals ⟨Φ|H|Φ⟩ for the qubit Hamiltonian, and FCI < RHF
+        H_sym = h2_sto3g_hamiltonian(R)
+        exp_hf = H_sym.expectation(phi_hf)
+        assert np.isclose(e_rhf, exp_hf, atol=1e-10)
+
+        e_fci_sym = spectrum(H_sym)[0]
+        assert e_fci_sym < e_rhf
+
+        # 3. Full CI does not depend on which orthonormal orbitals span the space:
+        #    Löwdin orbitals X vs σ_g, σ_u agree to 1e-10
+        X = lowdin(ao.S)
+        h1_low, h2_low = mo_transform(X, ao.h, ao.eri)
+        h1_low_spin, h2_low_spin = spatial_to_spin_orbital(h1_low, h2_low)
+        H_low = integral_hamiltonian(h1_low_spin, h2_low_spin, nuclear_repulsion=ao.v_nuc)
+        e_fci_low = spectrum(H_low)[0]
+        assert np.isclose(e_fci_low, e_fci_sym, atol=1e-10)
+
+
+
 
 
 
