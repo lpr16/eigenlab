@@ -512,6 +512,50 @@ def test_h4_four_far_atoms():
     assert evals_n4[16] - evals_n4[0] > 1e-2
 
 
+def test_h4_square_symmetry_and_correlation_gap():
+    # Phase 23: The square
+    from eigenlab.integrals import ao_integrals, rhf
+
+    def fci_n4(a_val: float, b_val: float) -> float:
+        h_mat = h4_sto3g_hamiltonian(a_val, b_val).to_matrix()
+        return float(np.linalg.eigvalsh(occupation_block(h_mat, n_particles=4))[0])
+
+    # 1. Full CI is symmetric under swapping the sides: E(a, b) = E(b, a) to 1e-10
+    assert np.isclose(fci_n4(1.401, 2.0), fci_n4(2.0, 1.401), atol=1e-10)
+
+    # 2. At a = b = 2.0, the derivative of E(a + δ, a − δ) at δ = 0 vanishes by symmetry
+    delta = 1e-3
+    deriv_sym = (fci_n4(2.0 + delta, 2.0 - delta) - fci_n4(2.0 - delta, 2.0 + delta)) / (2.0 * delta)
+    assert abs(deriv_sym) < 1e-6
+
+    # 3. In Löwdin orbitals, one-electron Hamiltonian h has a doubly degenerate middle pair
+    #    at the square (a_1g ⊕ e_u ⊕ b_2g), to 1e-8, and that pair splits when a != b.
+    h1_sq, _, _ = h4_sto3g_integrals(2.0, 2.0)
+    evals_h1_sq = np.linalg.eigvalsh(h1_sq)
+    assert np.isclose(evals_h1_sq[1], evals_h1_sq[2], atol=1e-8)
+    assert evals_h1_sq[1] - evals_h1_sq[0] > 1e-2
+    assert evals_h1_sq[3] - evals_h1_sq[2] > 1e-2
+
+    h1_rect, _, _ = h4_sto3g_integrals(1.401, 2.0)
+    evals_h1_rect = np.linalg.eigvalsh(h1_rect)
+    assert abs(evals_h1_rect[2] - evals_h1_rect[1]) > 1e-2
+
+    # 4. RHF minus full-CI gap is larger at the square a = b = 2.0 than at the rectangle a = 1.401, b = 2.0
+    def rhf_e(a_val: float, b_val: float) -> float:
+        atoms = [
+            (1.0, 1.24, [-0.5 * a_val, -0.5 * b_val, 0.0]),
+            (1.0, 1.24, [-0.5 * a_val, 0.5 * b_val, 0.0]),
+            (1.0, 1.24, [0.5 * a_val, -0.5 * b_val, 0.0]),
+            (1.0, 1.24, [0.5 * a_val, 0.5 * b_val, 0.0]),
+        ]
+        return rhf(ao_integrals(atoms), n_electrons=4).energy
+
+    gap_sq = rhf_e(2.0, 2.0) - fci_n4(2.0, 2.0)
+    gap_rect = rhf_e(1.401, 2.0) - fci_n4(1.401, 2.0)
+    assert gap_sq > gap_rect > 0.0
+
+
+
 
 
 
