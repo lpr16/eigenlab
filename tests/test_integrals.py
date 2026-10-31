@@ -3,12 +3,16 @@ import numpy as np
 from eigenlab.integrals import (
     STO3G_1S_COEFFICIENTS,
     STO3G_1S_EXPONENTS,
+    boys0,
     contracted_kinetic,
+    contracted_nuclear_attraction,
     contracted_overlap,
     gaussian_kinetic,
+    gaussian_nuclear_attraction,
     gaussian_overlap,
     sto3g_1s,
 )
+from eigenlab.molecular import H_ATOM_STO3G_ENERGY
 
 
 def test_gaussian_overlap():
@@ -121,5 +125,59 @@ def test_kinetic_energy_integral():
     assert contracted_kinetic(chi_he, chi_he) > 0.0
     assert contracted_kinetic(chi_h, chi_h) > 0.0
     assert np.isclose(contracted_kinetic(chi_he, chi_h), contracted_kinetic(chi_h, chi_he), atol=1e-15)
+
+
+def test_boys0_and_nuclear_attraction():
+    # Phase 4: Boys function and nuclear attraction
+    # 1. boys0(0) = 1, and for small t the Taylor series 1 − t/3 + t²/10 matches to 1e-10 at t = 1e-3.
+    assert boys0(0.0) == 1.0
+    t = 1e-3
+    series = 1.0 - t / 3.0 + (t * t) / 10.0
+    assert np.isclose(boys0(t), series, atol=1e-10)
+
+    # 2. One normalized primitive with the nucleus at its centre (a = b, A = B = C):
+    #    p = 2a, μ = a/2, K = exp(0) = 1, P = A = C so F0(0) = 1, and N(a)² = (2a/π)^{3/2}.
+    #    V = −Z (2π / 2a) (1) (1) (2a / π)^{3/2} = −Z (π / a) (2a / π)^{3/2} = −2Z √(2a / π).
+    for a in [0.15, 0.5, 1.0, 2.22766]:
+        for z in [1.0, 2.0]:
+            center = [0.3, -0.2, 0.7]
+            expected_v = -2.0 * z * np.sqrt(2.0 * a / np.pi)
+            assert np.isclose(
+                gaussian_nuclear_attraction(a, center, a, center, z, center),
+                expected_v,
+                atol=1e-14,
+            )
+
+    # 3. STO-3G hydrogen atom (ζ = 1.24, Z = 1) has T + V equal to H_ATOM_STO3G_ENERGY (-0.466582) to 1e-5.
+    chi_h_atom = sto3g_1s(1.24, [0.0, 0.0, 0.0])
+    e_h_atom = contracted_kinetic(chi_h_atom, chi_h_atom) + contracted_nuclear_attraction(
+        chi_h_atom, chi_h_atom, 1.0, [0.0, 0.0, 0.0]
+    )
+    assert np.isclose(e_h_atom, H_ATOM_STO3G_ENERGY, atol=1e-5)
+
+    # 4. HeH+ one-electron integrals h_11, h_12, h_22 at R = 1.4632 match heh_sto3g_integrals docstring
+    #    (Szabo & Ostlund Section 3.5.3, Table 3.5: h_11 = -2.652744, h_12 = -1.347205, h_22 = -1.731828).
+    r_he = [0.0, 0.0, 0.0]
+    r_h = [0.0, 0.0, 1.4632]
+    chi_he = sto3g_1s(2.0925, r_he)
+    chi_h = sto3g_1s(1.24, r_h)
+
+    def core_elem(ca, cb):
+        return (
+            contracted_kinetic(ca, cb)
+            + contracted_nuclear_attraction(ca, cb, 2.0, r_he)
+            + contracted_nuclear_attraction(ca, cb, 1.0, r_h)
+        )
+
+    h_11 = core_elem(chi_he, chi_he)
+    h_12 = core_elem(chi_he, chi_h)
+    h_21 = core_elem(chi_h, chi_he)
+    h_22 = core_elem(chi_h, chi_h)
+
+    assert np.isclose(h_12, h_21, atol=1e-15)
+    assert np.isclose(h_11, -2.652744, atol=1e-5)
+    assert np.isclose(h_12, -1.347205, atol=1e-5)
+    assert np.isclose(h_22, -1.731828, atol=1e-5)
+
 
 
