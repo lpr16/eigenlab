@@ -10,7 +10,7 @@ from eigenlab.fermions import (
     jordan_wigner_a,
     jordan_wigner_adag,
 )
-from eigenlab.hamiltonian import Hamiltonian
+from eigenlab.hamiltonian import Hamiltonian, spectrum
 from eigenlab.integrals import ao_integrals, h2_symmetry_orbitals, lowdin, mo_transform, rhf
 
 
@@ -177,6 +177,17 @@ def h2_sto3g_hamiltonian(
     h1, h2, v_nuc = h2_sto3g_integrals(bond_length_au)
     h1_spin, h2_spin = spatial_to_spin_orbital(h1, h2)
     return integral_hamiltonian(h1_spin, h2_spin, nuclear_repulsion=v_nuc, mapping=mapping)
+
+
+def h2_energy_gradient(R: float, step: float = 1e-4) -> float:
+    """Return the central-difference derivative dE/dR of the H2 STO-3G full-CI ground energy."""
+    r_val = float(R)
+    h_val = float(step)
+    if h_val <= 0.0 or r_val - h_val <= 0.0:
+        raise ValueError(f"Require R > step > 0, got R={R}, step={step}")
+    e_plus = float(spectrum(h2_sto3g_hamiltonian(r_val + h_val))[0])
+    e_minus = float(spectrum(h2_sto3g_hamiltonian(r_val - h_val))[0])
+    return (e_plus - e_minus) / (2.0 * h_val)
 
 
 def heh_sto3g_integrals(

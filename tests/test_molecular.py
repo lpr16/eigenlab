@@ -7,6 +7,7 @@ from eigenlab.fermions import (
 )
 from eigenlab.hamiltonian import eigensystem, spectrum
 from eigenlab.molecular import (
+    h2_energy_gradient,
     h2_sto3g_hamiltonian,
     h2_sto3g_integrals,
     heh_sto3g_hamiltonian,
@@ -329,6 +330,28 @@ def test_h2_dissociation_curve():
     gap_eq = rhf_gap(1.401)
     gap_6 = rhf_gap(6.0)
     assert gap_6 > gap_eq > 0.0
+
+
+def test_h2_energy_gradient_and_matrix_hellmann_feynman():
+    # Phase 15: One derivative
+    # Derivative is negative at R = 1.0 (compressed) and positive at R = 2.0 and R = 3.0 (stretched).
+    assert h2_energy_gradient(1.0) < 0.0
+    assert h2_energy_gradient(2.0) > 0.0
+    assert h2_energy_gradient(3.0) > 0.0
+
+    # Matrix Hellmann-Feynman holds on the smooth Hermitian matrix family H(R):
+    # <ψ| (H(R+h) - H(R-h)) / 2h |ψ> matches h2_energy_gradient(R) to 1e-6 at R = 1.0, 1.401, 2.0.
+    h = 1e-4
+    for R in [1.0, 1.401, 2.0]:
+        _, evecs = eigensystem(h2_sto3g_hamiltonian(R))
+        psi = evecs[:, 0]
+        dh_dr = (
+            h2_sto3g_hamiltonian(R + h).to_matrix() - h2_sto3g_hamiltonian(R - h).to_matrix()
+        ) / (2.0 * h)
+        hf_deriv = float(np.real( np.vdot(psi, dh_dr @ psi) ))
+        grad = h2_energy_gradient(R, step=h)
+        assert np.isclose(hf_deriv, grad, atol=1e-6)
+
 
 
 
