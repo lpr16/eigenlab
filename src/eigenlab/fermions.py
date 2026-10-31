@@ -367,6 +367,22 @@ def occupation_block(
     return h_mat[np.ix_(indices, indices)]
 
 
+def embed_occupation_state(
+    block_state: np.ndarray,
+    n_particles: int,
+    n_orbitals: int,
+) -> np.ndarray:
+    """Embed a ket from the ``n_particles`` occupation block back into the ``2**n_orbitals`` Fock space."""
+    dim = 1 << n_orbitals
+    indices = [idx for idx in range(dim) if idx.bit_count() == n_particles]
+    vec = np.asarray(block_state, dtype=complex).reshape(-1)
+    if vec.size != len(indices):
+        raise ValueError(f"Expected vector of length {len(indices)}, got {vec.size}")
+    full = np.zeros(dim, dtype=complex)
+    full[indices] = vec
+    return full
+
+
 def hubbard_dimer_occupation_block(
     t: float = 1.0, U: float = 0.0, n_particles: int = 2
 ) -> np.ndarray:
@@ -439,10 +455,10 @@ def one_particle_rdm(
         ket = ket / norm
         if ket.size != dim:
             raise ValueError(f"state size {ket.size} does not match 2^{n} = {dim}")
+        a_kets = [a_mats[p] @ ket for p in range(n)]
         for p in range(n):
             for q in range(n):
-                op = adag_mats[p] @ a_mats[q]
-                gamma[p, q] = np.vdot(ket, op @ ket)
+                gamma[p, q] = np.vdot(a_kets[p], a_kets[q])
     elif arr.ndim == 2 and arr.shape == (dim, dim):
         tr = np.trace(arr)
         if abs(tr) == 0:

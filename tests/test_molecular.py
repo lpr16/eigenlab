@@ -1,7 +1,9 @@
 import numpy as np
 
 from eigenlab.fermions import (
+    embed_occupation_state,
     jordan_wigner_adag,
+    natural_occupations,
     occupation_block,
     tag_sectors,
     total_number_operator,
@@ -553,6 +555,43 @@ def test_h4_square_symmetry_and_correlation_gap():
     gap_sq = rhf_e(2.0, 2.0) - fci_n4(2.0, 2.0)
     gap_rect = rhf_e(1.401, 2.0) - fci_n4(1.401, 2.0)
     assert gap_sq > gap_rect > 0.0
+
+
+def test_h4_ground_state_sectors_spin_and_natural_occupations():
+    # Phase 24: What the H4 ground state is
+    # At the rectangle (1.401, 2.0) and the square (2.0, 2.0), embed the N = 4 ground
+    # vector back into the 256-dimensional space:
+    # - tag_sectors gives (4, 0)
+    # - <S^2> = 0 to 1e-8 through total_spin_squared(4)
+    # - natural occupations sum to 4
+    # - at the square, more of them lie strictly between 0.1 and 0.9 than at the rectangle
+    s2_op = total_spin_squared(4)
+
+    def ground_state_n4(a_val: float, b_val: float) -> np.ndarray:
+        h_mat = h4_sto3g_hamiltonian(a_val, b_val).to_matrix()
+        block = occupation_block(h_mat, n_particles=4)
+        evals, evecs = np.linalg.eigh(block)
+        # Ground state of the N = 4 block is nondegenerate singlet
+        assert evals[1] - evals[0] > 1e-4
+        return embed_occupation_state(evecs[:, 0], n_particles=4, n_orbitals=8)
+
+    gs_rect = ground_state_n4(1.401, 2.0)
+    gs_sq = ground_state_n4(2.0, 2.0)
+
+    for gs in [gs_rect, gs_sq]:
+        assert gs.shape == (256,)
+        assert tag_sectors(gs, n_spatial=4) == (4, 0.0)
+        assert np.isclose(s2_op.expectation(gs), 0.0, atol=1e-8)
+
+    occ_rect = natural_occupations(gs_rect, 8)
+    occ_sq = natural_occupations(gs_sq, 8)
+    assert np.isclose(np.sum(occ_rect), 4.0, atol=1e-8)
+    assert np.isclose(np.sum(occ_sq), 4.0, atol=1e-8)
+
+    frac_rect = sum(1 for x in occ_rect if 0.1 < x < 0.9)
+    frac_sq = sum(1 for x in occ_sq if 0.1 < x < 0.9)
+    assert frac_sq > frac_rect
+
 
 
 
