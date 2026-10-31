@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 import numpy as np
 
-from eigenlab.pauli import apply_pauli, pauli_comm, pauli_mult
-from eigenlab.states import density
+from eigenlab.pauli import apply_pauli, pauli, pauli_comm, pauli_mult
+from eigenlab.states import basis, density
 
 
 def _as_density_matrix(state: np.ndarray) -> tuple[np.ndarray, int]:
@@ -42,9 +44,98 @@ def bit_flip_channel(rho: np.ndarray, p: float) -> np.ndarray:
     return out
 
 
+BIT_FLIP_STABILIZERS: tuple[str, str] = ("ZZI", "IZZ")
+
+
+def stabilizers_commute(stabilizers: Sequence[str]) -> bool:
+    """Return True if all stabilizer labels have the same length and commute pairwise."""
+    stabs = list(stabilizers)
+    if not stabs:
+        raise ValueError("stabilizers must be non-empty")
+    n = len(stabs[0])
+    for i, s1 in enumerate(stabs):
+        if len(s1) != n:
+            raise ValueError("All stabilizer labels must have the same qubit count.")
+        for s2 in stabs[i + 1 :]:
+            if pauli_comm(s1, s2)[0] != 0:
+                return False
+    return True
+
+
+def syndrome_projector(stabilizers: Sequence[str], syndrome: Sequence[int]) -> np.ndarray:
+    """Build the projector Pi_k (I + s_k S_k) / 2 for stabilizer signs s_k in {+1, -1}."""
+    stabs = list(stabilizers)
+    signs = list(syndrome)
+    if len(stabs) != len(signs):
+        raise ValueError("stabilizers and syndrome must have the same length.")
+    if not stabilizers_commute(stabs):
+        raise ValueError("Stabilizers must commute pairwise.")
+    n = len(stabs[0])
+    if n > 8:
+        raise ValueError(f"Matrices only supported for n <= 8 qubits, got n={n}")
+    dim = 1 << n
+    ident = np.eye(dim, dtype=complex)
+    proj = ident.copy()
+    for s_label, sign in zip(stabs, signs):
+        if sign not in (-1, 1):
+            raise ValueError(f"Syndrome sign must be +1 or -1, got {sign}")
+        proj = proj @ (0.5 * (ident + float(sign) * pauli(s_label)))
+    return proj
+
+
+def code_projector(stabilizers: Sequence[str]) -> np.ndarray:
+    """Build the code-space projector Pi_{S in stabilizers} (I + S) / 2."""
+    stabs = list(stabilizers)
+    return syndrome_projector(stabs, [1] * len(stabs))
+
+
+def error_syndrome(error: str, stabilizers: Sequence[str]) -> tuple[int, ...]:
+    """Return the syndrome tuple of +1 (commutes) or -1 (anticommutes) for ``error`` against ``stabilizers``."""
+    return tuple(1 if pauli_comm(error, s)[0] == 0 else -1 for s in stabilizers)
+
+
+def encode_bit_flip(state_1q: np.ndarray) -> np.ndarray:
+    """Encode a 1-qubit ket alpha|0> + beta|1> into alpha|000> + beta|111>."""
+    ket = np.asarray(state_1q, dtype=complex).reshape(-1)
+    if ket.shape != (2,):
+        raise ValueError(f"Expected 1-qubit ket of shape (2,), got {ket.shape}")
+    norm = np.linalg.norm(ket)
+    if norm == 0:
+        raise ValueError("state_1q has zero norm")
+    ket = ket / norm
+    return ket[0] * basis(0b000, 3) + ket[1] * basis(0b111, 3)
+
+
+def correct_bit_flip(rho: np.ndarray) -> np.ndarray:
+    """Measure the bit-flip code syndrome (ZZI, IZZ) and apply single-qubit majority recovery."""
+    mat, n = _as_density_matrix(rho)
+    if n != 3:
+        raise ValueError(f"Bit-flip code requires 3 qubits, got {n}")
+    recovery_map = {
+        (1, 1): "III",
+        (-1, 1): "XII",
+        (-1, -1): "IXI",
+        (1, -1): "IIX",
+    }
+    out = np.zeros_like(mat)
+    for syn, rec_label in recovery_map.items():
+        proj = syndrome_projector(BIT_FLIP_STABILIZERS, syn)
+        r_mat = pauli(rec_label)
+        sub = proj @ mat @ proj
+        out += r_mat @ sub @ r_mat.conj().T
+    return out
+
+
 __all__ = [
+    "BIT_FLIP_STABILIZERS",
     "apply_pauli",
     "bit_flip_channel",
+    "code_projector",
+    "correct_bit_flip",
+    "encode_bit_flip",
+    "error_syndrome",
     "pauli_comm",
     "pauli_mult",
+    "stabilizers_commute",
+    "syndrome_projector",
 ]
