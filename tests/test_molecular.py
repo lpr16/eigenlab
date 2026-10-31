@@ -9,6 +9,8 @@ from eigenlab.hamiltonian import eigensystem, spectrum
 from eigenlab.molecular import (
     h2_electrostatic_hellmann_feynman,
     h2_energy_gradient,
+    h2_equilibrium_bond_length,
+    h2_rhf_energy_gradient,
     h2_sto3g_hamiltonian,
     h2_sto3g_integrals,
     heh_sto3g_hamiltonian,
@@ -364,6 +366,34 @@ def test_h2_pulay_term():
     pulay = grad_total - force_ehf
     print(f"R = {R}: total dE/dR = {grad_total:.8f}, electrostatic HF = {force_ehf:.8f}, Pulay = {pulay:.8f}")
     assert abs(grad_total - force_ehf) > 1e-3
+
+
+def test_h2_equilibrium_bond_length():
+    # Phase 17: Equilibrium bond length
+    # Bisect h2_energy_gradient on [1.0, 2.0] until the interval is shorter than 1e-6.
+    # No external STO-3G full-CI R_e table is at hand in the repo's citations, so the
+    # internal variational and sign-change checks stand alone per the contract.
+    from eigenlab.integrals import ao_integrals, rhf
+
+    r_e_fci = h2_equilibrium_bond_length(method="fci", bracket=(1.0, 2.0), tol=1e-6)
+    assert 1.0 < r_e_fci < 2.0
+    assert abs(h2_energy_gradient(r_e_fci)) < 1e-5
+
+    e_re = float(spectrum(h2_sto3g_hamiltonian(r_e_fci))[0])
+    e_1401 = float(spectrum(h2_sto3g_hamiltonian(1.401))[0])
+    assert e_re <= e_1401
+    assert abs(e_re - (-1.13727)) < 1e-3
+    assert abs(e_1401 - (-1.13727)) < 1e-3
+
+    # Do the same with the RHF energy: R_e(RHF) < R_e(FCI) (correlation lengthens the bond)
+    assert h2_rhf_energy_gradient(1.0) < 0.0 < h2_rhf_energy_gradient(2.0)
+    r_e_rhf = h2_equilibrium_bond_length(method="rhf", bracket=(1.0, 2.0), tol=1e-6)
+    assert r_e_rhf < r_e_fci
+
+    ao_rhf_eq = ao_integrals([(1.0, 1.24, [0.0, 0.0, 0.0]), (1.0, 1.24, [0.0, 0.0, r_e_rhf])])
+    ao_rhf_1401 = ao_integrals([(1.0, 1.24, [0.0, 0.0, 0.0]), (1.0, 1.24, [0.0, 0.0, 1.401])])
+    assert rhf(ao_rhf_eq, n_electrons=2).energy <= rhf(ao_rhf_1401, n_electrons=2).energy
+
 
 
 

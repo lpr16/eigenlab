@@ -237,6 +237,53 @@ def h2_electrostatic_hellmann_feynman(R: float = 1.401, step: float = 1e-4) -> f
     return float(dh_frozen.expectation(psi))
 
 
+def _h2_rhf_energy(R: float) -> float:
+    ao = ao_integrals([(1.0, 1.24, [0.0, 0.0, 0.0]), (1.0, 1.24, [0.0, 0.0, float(R)])])
+    return rhf(ao, n_electrons=2).energy
+
+
+def h2_rhf_energy_gradient(R: float, step: float = 1e-4) -> float:
+    """Return the central-difference derivative dE_RHF/dR of the H2 STO-3G RHF energy."""
+    r_val = float(R)
+    h_val = float(step)
+    if h_val <= 0.0 or r_val - h_val <= 0.0:
+        raise ValueError(f"Require R > step > 0, got R={R}, step={step}")
+    return (_h2_rhf_energy(r_val + h_val) - _h2_rhf_energy(r_val - h_val)) / (2.0 * h_val)
+
+
+def h2_equilibrium_bond_length(
+    method: str = "fci",
+    bracket: tuple[float, float] = (1.0, 2.0),
+    tol: float = 1e-6,
+) -> float:
+    """Bisect the H2 energy gradient on ``bracket`` until the interval is shorter than ``tol``."""
+    low, high = float(bracket[0]), float(bracket[1])
+    if low <= 0.0 or high <= low or tol <= 0.0:
+        raise ValueError(f"Invalid bracket {bracket} or tolerance {tol}")
+
+    kind = method.lower()
+    if kind == "fci":
+        grad_fn = h2_energy_gradient
+    elif kind == "rhf":
+        grad_fn = h2_rhf_energy_gradient
+    else:
+        raise ValueError(f"Unknown method: {method}. Must be 'fci' or 'rhf'")
+
+    g_low = grad_fn(low)
+    g_high = grad_fn(high)
+    if not (g_low < 0.0 < g_high):
+        raise ValueError(f"Gradient does not change sign from negative to positive on {bracket}")
+
+    while (high - low) >= tol:
+        mid = 0.5 * (low + high)
+        if grad_fn(mid) < 0.0:
+            low = mid
+        else:
+            high = mid
+
+    return 0.5 * (low + high)
+
+
 def heh_sto3g_integrals(
     bond_length_au: float = 1.4632,
 ) -> tuple[np.ndarray, np.ndarray, float]:
