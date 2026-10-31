@@ -53,13 +53,9 @@ def integral_hamiltonian(
     if h2.shape != (n, n, n, n):
         raise ValueError(f"two_electron must have shape ({n}, {n}, {n}, {n})")
 
-    terms: list[tuple[complex, str]] = []
-    if abs(nuclear_repulsion) > 1e-12:
-        terms.append((complex(nuclear_repulsion), "I" * n))
-
-    H = Hamiltonian(terms)
-
     # Precompute fermionic operators according to selected mapping
+    from collections import defaultdict
+
     map_norm = mapping.lower()
     if map_norm in ("jordan_wigner", "jw"):
         a_ops = [jordan_wigner_a(p, n) for p in range(n)]
@@ -70,25 +66,49 @@ def integral_hamiltonian(
     else:
         raise ValueError(f"Unknown mapping: {mapping}. Must be 'jordan_wigner' or 'bravyi_kitaev'")
 
+    acc: dict[str, complex] = defaultdict(complex)
+    if abs(nuclear_repulsion) > 1e-12:
+        acc["I" * n] += complex(nuclear_repulsion)
+
     # One-electron terms: ∑_{p,q} h_{pq} a†_p a_q
     for p in range(n):
         for q in range(n):
             coeff = h1[p, q]
             if abs(coeff) > 1e-12:
                 op = adag_ops[p] @ a_ops[q]
-                H = H + (coeff * op)
+                for c_op, lbl in op.terms:
+                    acc[lbl] += coeff * c_op
+
+    # Precompute pairs a†_p a†_r (p != r) and a_s a_q (s != q)
+    adag_pairs: dict[tuple[int, int], Hamiltonian] = {}
+    a_pairs: dict[tuple[int, int], Hamiltonian] = {}
+    for p in range(n):
+        for r in range(n):
+            if p != r:
+                adag_pairs[(p, r)] = (adag_ops[p] @ adag_ops[r]).simplify()
+                a_pairs[(p, r)] = (a_ops[p] @ a_ops[r]).simplify()
 
     # Two-electron terms: (1/2) ∑_{p,q,r,s} (pq|rs) a†_p a†_r a_s a_q
     for p in range(n):
-        for q in range(n):
-            for r in range(n):
+        for r in range(n):
+            if p == r:
+                continue
+            left_op = adag_pairs[(p, r)]
+            for q in range(n):
                 for s in range(n):
+                    if s == q:
+                        continue
                     coeff = h2[p, q, r, s]
                     if abs(coeff) > 1e-12:
-                        op = adag_ops[p] @ adag_ops[r] @ a_ops[s] @ a_ops[q]
-                        H = H + (0.5 * coeff * op)
+                        op = left_op @ a_pairs[(s, q)]
+                        half_coeff = 0.5 * coeff
+                        for c_op, lbl in op.terms:
+                            acc[lbl] += half_coeff * c_op
 
-    return H.simplify()
+    filtered = [(val, lbl) for lbl, val in acc.items() if abs(val) > 1e-12]
+    if not filtered:
+        filtered = [(0.0j, "I" * n)]
+    return Hamiltonian(filtered)
 
 
 molecular_hamiltonian = integral_hamiltonian
@@ -379,6 +399,50 @@ def heh_sto3g_hamiltonian(
     Returns the simplified 4-qubit Hamiltonian including nuclear repulsion.
     """
     h1, h2, v_nuc = heh_sto3g_integrals(bond_length_au)
+    h1_spin, h2_spin = spatial_to_spin_orbital(h1, h2)
+    return integral_hamiltonian(h1_spin, h2_spin, nuclear_repulsion=v_nuc, mapping=mapping)
+
+
+def h4_sto3g_integrals(
+    a: float,
+    b: float,
+    orbitals: str = "lowdin",
+) -> tuple[np.ndarray, np.ndarray, float]:
+    """Return STO-3G molecular integrals ``(h1, h2, v_nuc)`` for rectangular H4 at ``(±a/2, ±b/2, 0)``.
+
+    Uses Löwdin symmetrically orthogonalized orbitals by default (or RHF orbitals when ``orbitals="rhf"``).
+    """
+    a_val = float(a)
+    b_val = float(b)
+    if a_val <= 0.0 or b_val <= 0.0:
+        raise ValueError(f"Rectangle side lengths a and b must be positive, got a={a}, b={b}")
+
+    atoms = [
+        (1.0, 1.24, [-0.5 * a_val, -0.5 * b_val, 0.0]),
+        (1.0, 1.24, [-0.5 * a_val, 0.5 * b_val, 0.0]),
+        (1.0, 1.24, [0.5 * a_val, -0.5 * b_val, 0.0]),
+        (1.0, 1.24, [0.5 * a_val, 0.5 * b_val, 0.0]),
+    ]
+    ao = ao_integrals(atoms)
+    orb_kind = orbitals.lower()
+    if orb_kind == "lowdin":
+        c_mat = lowdin(ao.S)
+    elif orb_kind == "rhf":
+        c_mat = rhf(ao, n_electrons=4).coefficients
+    else:
+        raise ValueError(f"Unknown orbitals={orbitals!r}; expected 'lowdin' or 'rhf'")
+    h1, h2 = mo_transform(c_mat, ao.h, ao.eri)
+    return h1, h2, ao.v_nuc
+
+
+def h4_sto3g_hamiltonian(
+    a: float,
+    b: float,
+    mapping: str = "jordan_wigner",
+    orbitals: str = "lowdin",
+) -> Hamiltonian:
+    """Build the 8-qubit second-quantized Pauli Hamiltonian for rectangular H4 in STO-3G."""
+    h1, h2, v_nuc = h4_sto3g_integrals(a, b, orbitals=orbitals)
     h1_spin, h2_spin = spatial_to_spin_orbital(h1, h2)
     return integral_hamiltonian(h1_spin, h2_spin, nuclear_repulsion=v_nuc, mapping=mapping)
 

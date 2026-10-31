@@ -2,8 +2,11 @@ import numpy as np
 
 from eigenlab.fermions import (
     jordan_wigner_adag,
+    occupation_block,
     tag_sectors,
+    total_number_operator,
     total_spin_squared,
+    total_spin_z,
 )
 from eigenlab.hamiltonian import eigensystem, spectrum
 from eigenlab.molecular import (
@@ -17,6 +20,8 @@ from eigenlab.molecular import (
     h2_rhf_energy_gradient,
     h2_sto3g_hamiltonian,
     h2_sto3g_integrals,
+    h4_sto3g_hamiltonian,
+    h4_sto3g_integrals,
     heh_sto3g_hamiltonian,
     heh_sto3g_integrals,
     integral_hamiltonian,
@@ -422,6 +427,33 @@ def test_h2_harmonic_frequency():
     assert np.isclose(omega_au, omega_expected, atol=1e-15)
     assert np.isclose(nu_cm1, nu_cm1_expected, atol=1e-10)
     assert nu_cm1 > 0.0
+
+
+def test_h4_rectangle_integrals_and_hamiltonian():
+    # Phase 19: Rectangle integrals (H4 at (±a/2, ±b/2, 0) with ζ = 1.24)
+    h1, h2, v_nuc = h4_sto3g_integrals(1.401, 2.0)
+    assert h1.shape == (4, 4)
+    assert h2.shape == (4, 4, 4, 4)
+    assert v_nuc > 0.0
+
+    H = h4_sto3g_hamiltonian(1.401, 2.0)
+    assert H.qubits == 8
+
+    h_mat = H.to_matrix()
+    assert h_mat.shape == (256, 256)
+    assert np.allclose(h_mat, h_mat.conj().T, atol=1e-12)
+
+    # Commutes with total_number_operator(8) and total_spin_z(4) to 1e-10
+    n_op = total_number_operator(8).to_matrix()
+    sz_op = total_spin_z(4).to_matrix()
+    assert np.allclose(h_mat @ n_op - n_op @ h_mat, 0.0, atol=1e-10)
+    assert np.allclose(h_mat @ sz_op - sz_op @ h_mat, 0.0, atol=1e-10)
+
+    # N = 4 block has dimension C(8, 4) = 70
+    block_4 = occupation_block(h_mat, n_particles=4)
+    assert block_4.shape == (70, 70)
+    assert np.allclose(block_4, block_4.conj().T, atol=1e-12)
+
 
 
 
