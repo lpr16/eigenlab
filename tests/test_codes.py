@@ -5,6 +5,7 @@ from eigenlab.codes import (
     FIVE_QUBIT_STABILIZERS,
     PHASE_FLIP_STABILIZERS,
     bit_flip_channel,
+    code_distance,
     code_projector,
     correct_bit_flip,
     correct_phase_flip,
@@ -17,8 +18,9 @@ from eigenlab.codes import (
     stabilizer_group,
     stabilizers_commute,
     transversal_clifford,
+    weight_k_paulis,
 )
-from eigenlab.pauli import X, apply_pauli, conjugate_clifford, pauli, pauli_comm
+from eigenlab.pauli import X, apply_pauli, conjugate_clifford, pauli, pauli_anti, pauli_comm
 from eigenlab.states import ONE, PLUS, ZERO, basis, density, ghz
 
 
@@ -161,6 +163,42 @@ def test_five_qubit_code():
     syndromes = [error_syndrome(e, FIVE_QUBIT_STABILIZERS) for e in errors]
     assert len(syndromes) == 16
     assert len(set(syndromes)) == 16
+
+
+def test_five_qubit_code_distance_three():
+    # Phase 29: Distance three
+    # No Pauli of weight 1 or 2 commutes with all four generators (15 + 90 = 105 labels).
+    w1 = weight_k_paulis(5, 1)
+    w2 = weight_k_paulis(5, 2)
+    assert len(w1) == 15
+    assert len(w2) == 90
+    w1_w2 = w1 + w2
+    assert len(w1_w2) == 105
+    for lbl in w1_w2:
+        assert error_syndrome(lbl, FIVE_QUBIT_STABILIZERS) != (1, 1, 1, 1)
+
+    group = stabilizer_group(FIVE_QUBIT_STABILIZERS)
+    assert len(group) == 16
+
+    # XXXXX and ZZZZZ commute with every generator, are not in the stabilizer group,
+    # and anticommute with each other.
+    for log_op in ["XXXXX", "ZZZZZ"]:
+        assert error_syndrome(log_op, FIVE_QUBIT_STABILIZERS) == (1, 1, 1, 1)
+        assert log_op not in group
+    assert pauli_comm("XXXXX", "ZZZZZ")[0] != 0
+    assert pauli_anti("XXXXX", "ZZZZZ")[0] == 0
+
+    # Weight-3 Pauli that commutes with every generator without being in the group:
+    # XXXXX * XZZXI = IYYIX has weight 3 and lies in the logical X coset.
+    w3_logicals = [
+        lbl
+        for lbl in weight_k_paulis(5, 3)
+        if error_syndrome(lbl, FIVE_QUBIT_STABILIZERS) == (1, 1, 1, 1) and lbl not in group
+    ]
+    assert "IYYIX" in w3_logicals
+    assert len(w3_logicals) > 0
+    assert code_distance(FIVE_QUBIT_STABILIZERS) == 3
+
 
 
 

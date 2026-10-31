@@ -237,12 +237,26 @@ def single_qubit_paulis(n: int) -> list[str]:
     return weight_k_paulis(n, 1)
 
 
+def code_distance(generators: Sequence[str]) -> int:
+    """Return the minimum weight of a Pauli operator in N(S) \\ S for stabilizer ``generators``."""
+    gens = list(generators)
+    n = len(gens[0])
+    group = stabilizer_group(gens)
+    all_ones = (1,) * len(gens)
+    for k in range(1, n + 1):
+        for lbl in weight_k_paulis(n, k):
+            if lbl not in group and error_syndrome(lbl, gens) == all_ones:
+                return k
+    raise ValueError("No nontrivial logical operators found.")
+
+
 __all__ = [
     "BIT_FLIP_STABILIZERS",
     "FIVE_QUBIT_STABILIZERS",
     "PHASE_FLIP_STABILIZERS",
     "apply_pauli",
     "bit_flip_channel",
+    "code_distance",
     "code_projector",
     "correct_bit_flip",
     "correct_phase_flip",
