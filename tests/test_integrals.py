@@ -16,6 +16,7 @@ from eigenlab.integrals import (
     h2_symmetry_orbitals,
     lowdin,
     mo_transform,
+    rhf,
     sto3g_1s,
 )
 from eigenlab.molecular import H_ATOM_STO3G_ENERGY, h2_sto3g_integrals
@@ -403,6 +404,46 @@ def test_lowdin_symmetric_orthogonalization():
         lowdin(np.array([[1.0, 1.0], [1.0, 1.0]]))
     with pytest.raises(ValueError):
         lowdin(np.array([[1.0, 1.0 - 1e-11], [1.0 - 1e-11, 1.0]]))
+
+
+def test_rhf_heh_sto3g():
+    # Phase 11: Restricted Hartree-Fock on HeH+ at R = 1.4632
+    # Cited values (Szabo & Ostlund Section 3.5.3, Table 3.5, and test_heh_sto3g):
+    #   E_RHF = -2.860662 Hartree
+    #   C = [[ 0.80191665, -0.78226573],
+    #        [ 0.33680182,  1.06844491]]
+    import pytest
+
+    R = 1.4632
+    ao = ao_integrals([(2.0, 2.0925, [0.0, 0.0, 0.0]), (1.0, 1.24, [0.0, 0.0, R])])
+    energy, eps, C, P = rhf(ao, n_electrons=2)
+
+    assert np.isclose(energy, -2.860662, atol=1e-5)
+    assert eps.shape == (2,)
+    assert eps[0] < eps[1]
+
+    c_ref = np.array(
+        [
+            [0.80191665, -0.78226573],
+            [0.33680182, 1.06844491],
+        ]
+    )
+    for col in range(2):
+        # Match each column up to sign (and with our largest-coefficient sign convention, directly)
+        sign = 1.0 if np.dot(C[:, col], c_ref[:, col]) >= 0.0 else -1.0
+        assert np.allclose(sign * C[:, col], c_ref[:, col], atol=1e-5)
+    assert np.allclose(C, c_ref, atol=1e-5)
+
+    # Orthonormality C^T S C = I and density P = 2 c_0 c_0^T
+    assert np.allclose(C.T @ ao.S @ C, np.eye(2), atol=1e-12)
+    assert np.allclose(P, 2.0 * np.outer(C[:, 0], C[:, 0]), atol=1e-12)
+
+    # Odd electron count or non-convergence raises
+    with pytest.raises(ValueError):
+        rhf(ao, n_electrons=1)
+    with pytest.raises(RuntimeError):
+        rhf(ao, n_electrons=2, max_iter=1)
+
 
 
 

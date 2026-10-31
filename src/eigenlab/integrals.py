@@ -394,6 +394,99 @@ def lowdin(S: np.ndarray) -> np.ndarray:
     return (evecs * (1.0 / np.sqrt(evals))) @ evecs.T
 
 
+class RHFResult(NamedTuple):
+    """Restricted Hartree-Fock result ``(energy, orbital_energies, coefficients, density)``."""
+
+    energy: float
+    orbital_energies: np.ndarray
+    coefficients: np.ndarray
+    density: np.ndarray
+
+
+def _fix_orbital_signs(C: np.ndarray) -> np.ndarray:
+    """Fix the sign of each MO column so its largest-magnitude coefficient is positive."""
+    c_out = C.copy()
+    for col in range(c_out.shape[1]):
+        column = c_out[:, col]
+        idx = int(np.argmax(np.abs(column)))
+        if column[idx] < 0.0:
+            c_out[:, col] = -column
+    return c_out
+
+
+def rhf(
+    ao: AOIntegrals | tuple[np.ndarray, np.ndarray, np.ndarray, float],
+    n_electrons: int,
+    max_iter: int = 200,
+) -> RHFResult:
+    """Restricted Hartree-Fock for an even electron count from an AO integral bundle.
+
+    Starts from the core-Hamiltonian guess (P = 0 -> F = h), solves F C = S C eps
+    through ``lowdin(S)``, with density P = 2 C_occ C_occ^T. Fixes the sign of each
+    column of C so its largest-magnitude coefficient is positive.
+    Stops when the energy changes by less than 1e-10 and the density by less than 1e-8.
+    """
+    if n_electrons < 0 or n_electrons % 2 != 0:
+        raise ValueError(f"n_electrons must be a nonnegative even integer, got {n_electrons}")
+
+    S, h, eri, v_nuc = ao
+    s_mat = np.asarray(S, dtype=float)
+    h_mat = np.asarray(h, dtype=float)
+    eri_arr = np.asarray(eri, dtype=float)
+    n_ao = s_mat.shape[0]
+    n_occ = n_electrons // 2
+    if n_occ > n_ao:
+        raise ValueError(f"Cannot place {n_electrons} electrons into {n_ao} spatial orbitals.")
+
+    x_mat = lowdin(s_mat)
+
+    def two_electron_fock(p_mat: np.ndarray) -> np.ndarray:
+        j_mat = np.einsum("ls,mnls->mn", p_mat, eri_arr)
+        k_mat = np.einsum("ls,mlsn->mn", p_mat, eri_arr)
+        return j_mat - 0.5 * k_mat
+
+    def roothaan_step(f_mat: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        f_ortho = x_mat.T @ f_mat @ x_mat
+        eps, c_ortho = np.linalg.eigh(f_ortho)
+        c_mat = _fix_orbital_signs(x_mat @ c_ortho)
+        c_occ = c_mat[:, :n_occ]
+        p_new = 2.0 * (c_occ @ c_occ.T)
+        return eps, c_mat, p_new
+
+    # Core-Hamiltonian initial guess: diagonalize F_0 = h
+    eps, c_mat, p_mat = roothaan_step(h_mat)
+    f_mat = h_mat + two_electron_fock(p_mat)
+    energy = 0.5 * float(np.sum(p_mat * (h_mat + f_mat))) + float(v_nuc)
+
+    for it in range(max_iter):
+        eps, c_mat, p_new = roothaan_step(f_mat)
+        f_new = h_mat + two_electron_fock(p_new)
+        energy_new = 0.5 * float(np.sum(p_new * (h_mat + f_new))) + float(v_nuc)
+
+        d_energy = abs(energy_new - energy)
+        d_density = float(np.linalg.norm(p_new - p_mat))
+        if d_energy < 1e-10 and d_density < 1e-8:
+            return RHFResult(
+                energy=energy_new,
+                orbital_energies=eps,
+                coefficients=c_mat,
+                density=p_new,
+            )
+
+        # Apply density damping if slow to converge after initial steps
+        if it >= 20:
+            p_mat = 0.5 * p_mat + 0.5 * p_new
+            f_mat = h_mat + two_electron_fock(p_mat)
+            energy = 0.5 * float(np.sum(p_mat * (h_mat + f_mat))) + float(v_nuc)
+        else:
+            p_mat = p_new
+            f_mat = f_new
+            energy = energy_new
+
+    raise RuntimeError(f"RHF did not converge within {max_iter} iterations.")
+
+
+
 
 
 

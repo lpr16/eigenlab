@@ -11,7 +11,7 @@ from eigenlab.fermions import (
     jordan_wigner_adag,
 )
 from eigenlab.hamiltonian import Hamiltonian
-from eigenlab.integrals import ao_integrals, h2_symmetry_orbitals, lowdin, mo_transform
+from eigenlab.integrals import ao_integrals, h2_symmetry_orbitals, lowdin, mo_transform, rhf
 
 
 def integral_hamiltonian(
