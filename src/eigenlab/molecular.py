@@ -284,6 +284,42 @@ def h2_equilibrium_bond_length(
     return 0.5 * (low + high)
 
 
+# CODATA 2018 constants (Tiesinga et al., Rev. Mod. Phys. 93, 025010 (2021)):
+# - 1H atomic mass in electron masses m_e: m(1H) / m_e = 1.00782503223 u * 1822.888486209 m_e/u = 1837.15264958 m_e
+# - Hartree energy in inverse centimeters: E_h / (h c) = 2 R_inf = 219474.63136320 cm^-1
+CODATA_2018_H_MASS_AU = 1837.15264958
+CODATA_2018_HARTREE_TO_CM1 = 219474.63136320
+
+
+def h2_force_constant(R: float, step: float = 1e-2) -> float:
+    """Central second difference d^2E/dR^2 of the H2 STO-3G full-CI ground energy at ``R``."""
+    r_val = float(R)
+    h_val = float(step)
+    if h_val <= 0.0 or r_val - h_val <= 0.0:
+        raise ValueError(f"Require R > step > 0, got R={R}, step={step}")
+    e_plus = float(spectrum(h2_sto3g_hamiltonian(r_val + h_val))[0])
+    e_zero = float(spectrum(h2_sto3g_hamiltonian(r_val))[0])
+    e_minus = float(spectrum(h2_sto3g_hamiltonian(r_val - h_val))[0])
+    return (e_plus - 2.0 * e_zero + e_minus) / (h_val * h_val)
+
+
+def h2_harmonic_frequency(
+    R_e: float | None = None,
+    step: float = 1e-2,
+    m_h_au: float = CODATA_2018_H_MASS_AU,
+) -> tuple[float, float]:
+    """Return ``(omega_au, nu_cm1)`` for H2 in STO-3G at ``R_e`` using CODATA 2018 constants."""
+    if R_e is None:
+        R_e = h2_equilibrium_bond_length()
+    k = h2_force_constant(R_e, step=step)
+    if k <= 0.0:
+        raise ValueError(f"Force constant k must be positive, got {k}")
+    mu = 0.5 * float(m_h_au)
+    omega_au = float(np.sqrt(k / mu))
+    nu_cm1 = omega_au * CODATA_2018_HARTREE_TO_CM1
+    return omega_au, nu_cm1
+
+
 def heh_sto3g_integrals(
     bond_length_au: float = 1.4632,
 ) -> tuple[np.ndarray, np.ndarray, float]:

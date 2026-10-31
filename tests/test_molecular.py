@@ -7,9 +7,13 @@ from eigenlab.fermions import (
 )
 from eigenlab.hamiltonian import eigensystem, spectrum
 from eigenlab.molecular import (
+    CODATA_2018_H_MASS_AU,
+    CODATA_2018_HARTREE_TO_CM1,
     h2_electrostatic_hellmann_feynman,
     h2_energy_gradient,
     h2_equilibrium_bond_length,
+    h2_force_constant,
+    h2_harmonic_frequency,
     h2_rhf_energy_gradient,
     h2_sto3g_hamiltonian,
     h2_sto3g_integrals,
@@ -393,6 +397,32 @@ def test_h2_equilibrium_bond_length():
     ao_rhf_eq = ao_integrals([(1.0, 1.24, [0.0, 0.0, 0.0]), (1.0, 1.24, [0.0, 0.0, r_e_rhf])])
     ao_rhf_1401 = ao_integrals([(1.0, 1.24, [0.0, 0.0, 0.0]), (1.0, 1.24, [0.0, 0.0, 1.401])])
     assert rhf(ao_rhf_eq, n_electrons=2).energy <= rhf(ao_rhf_1401, n_electrons=2).energy
+
+
+def test_h2_harmonic_frequency():
+    # Phase 18: Harmonic frequency
+    # CODATA 2018 recommended values (Tiesinga et al., Rev. Mod. Phys. 93, 025010 (2021)):
+    #   m_H = 1837.15264958 m_e (1H atomic mass in atomic units), μ = m_H / 2
+    #   E_h / (h c) = 219474.63136320 cm^-1 (hartree-to-cm^-1 conversion)
+    # No external cited STO-3G full-CI harmonic frequency table is at hand in the repo's
+    # references, so the internal finite-difference and formula checks stand alone per the contract.
+    r_e = h2_equilibrium_bond_length(method="fci", bracket=(1.0, 2.0), tol=1e-6)
+
+    k_1e2 = h2_force_constant(r_e, step=1e-2)
+    k_5e3 = h2_force_constant(r_e, step=5e-3)
+    assert k_1e2 > 0.0
+    assert k_5e3 > 0.0
+    assert abs(k_1e2 - k_5e3) / k_5e3 < 1e-4
+
+    mu = CODATA_2018_H_MASS_AU / 2.0
+    omega_expected = np.sqrt(k_1e2 / mu)
+    nu_cm1_expected = omega_expected * CODATA_2018_HARTREE_TO_CM1
+
+    omega_au, nu_cm1 = h2_harmonic_frequency(r_e, step=1e-2)
+    assert np.isclose(omega_au, omega_expected, atol=1e-15)
+    assert np.isclose(nu_cm1, nu_cm1_expected, atol=1e-10)
+    assert nu_cm1 > 0.0
+
 
 
 
