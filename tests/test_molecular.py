@@ -255,9 +255,11 @@ def test_heh_sto3g():
     assert h1.shape == (2, 2)
     assert h2.shape == (2, 2, 2, 2)
 
-    # Unsupported geometries raise ValueError (do not add a second bond length)
+    # Non-positive geometries raise ValueError
     with pytest.raises(ValueError):
-        heh_sto3g_integrals(1.0)
+        heh_sto3g_integrals(0.0)
+    with pytest.raises(ValueError):
+        heh_sto3g_integrals(-1.0)
 
     # 2. Build Hamiltonians with Jordan-Wigner and Bravyi-Kitaev mappings
     H_jw = heh_sto3g_hamiltonian(R_au, mapping="jordan_wigner")

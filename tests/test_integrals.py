@@ -19,7 +19,7 @@ from eigenlab.integrals import (
     rhf,
     sto3g_1s,
 )
-from eigenlab.molecular import H_ATOM_STO3G_ENERGY, h2_sto3g_integrals
+from eigenlab.molecular import H_ATOM_STO3G_ENERGY, h2_sto3g_integrals, heh_sto3g_integrals
 
 
 def test_gaussian_overlap():
@@ -443,6 +443,63 @@ def test_rhf_heh_sto3g():
         rhf(ao, n_electrons=1)
     with pytest.raises(RuntimeError):
         rhf(ao, n_electrons=2, max_iter=1)
+
+
+def test_heh_sto3g_from_integrals():
+    # Phase 12: HeH+ from integrals
+    # heh_sto3g_integrals(R) computes MO integrals through rhf for any R > 0.
+    # At R = 1.4632 they match the existing table to 1e-5, with column signs fixed so
+    # the largest-magnitude coefficient in each column is positive.
+    import pytest
+
+    doc = heh_sto3g_integrals.__doc__ or ""
+    assert "largest" in doc and "positive" in doc
+
+    h1_tab = np.array(
+        [
+            [-2.63007671, 0.24154815],
+            [0.24154815, -1.34832103],
+        ],
+        dtype=float,
+    )
+    h2_tab = np.zeros((2, 2, 2, 2), dtype=float)
+
+    def set_sym8(p: int, q: int, r: int, s: int, val: float) -> None:
+        for idx in [
+            (p, q, r, s),
+            (q, p, r, s),
+            (p, q, s, r),
+            (q, p, s, r),
+            (r, s, p, q),
+            (s, r, p, q),
+            (r, s, q, p),
+            (s, r, q, p),
+        ]:
+            h2_tab[idx] = val
+
+    set_sym8(0, 0, 0, 0, 1.03262451)
+    set_sym8(1, 1, 1, 1, 0.75595698)
+    set_sym8(0, 0, 1, 1, 0.74896193)
+    set_sym8(0, 1, 1, 0, 0.21127047)
+    set_sym8(0, 0, 0, 1, -0.24154822)
+    set_sym8(1, 1, 1, 0, -0.01882696)
+
+    h1, h2, v_nuc = heh_sto3g_integrals(1.4632)
+    assert np.isclose(v_nuc, 2.0 / 1.4632, atol=1e-12)
+    assert np.allclose(h1, h1_tab, atol=1e-5)
+    assert np.allclose(h2, h2_tab, atol=1e-5)
+
+    # Works for any R > 0; R <= 0 raises ValueError
+    for r_val in [1.0, 1.4632, 2.0, 3.0]:
+        h1_r, h2_r, vn_r = heh_sto3g_integrals(r_val)
+        assert h1_r.shape == (2, 2)
+        assert h2_r.shape == (2, 2, 2, 2)
+        assert np.isclose(vn_r, 2.0 / r_val, atol=1e-12)
+
+    for bad_r in [0.0, -0.5]:
+        with pytest.raises(ValueError):
+            heh_sto3g_integrals(bad_r)
+
 
 
 

@@ -182,18 +182,20 @@ def h2_sto3g_hamiltonian(
 def heh_sto3g_integrals(
     bond_length_au: float = 1.4632,
 ) -> tuple[np.ndarray, np.ndarray, float]:
-    r"""Return STO-3G molecular integrals for HeH+ at R = 1.4632 bohr (a.u.).
+    r"""Return STO-3G molecular integrals for HeH+ at any positive bond length in bohr (a.u.).
 
     Reference: Szabo & Ostlund, Modern Quantum Chemistry: Introduction to Advanced
     Electronic Structure Theory (1996), Section 3.5.3 (pp. 170-179) and Table 3.5.
 
     Geometry:
-        - Internuclear distance: R = 1.4632 a.u. (bohr)
-        - Nuclear charges: Z_He = 2, Z_H = 1
-        - Nuclear repulsion energy: V_nuc = 2 / R = 1.3668671405... Hartree
+        - Internuclear distance: R > 0 a.u. (bohr), default R = 1.4632 a.u.
+        - Nuclear charges: Z_He = 2 (zeta_He = 2.0925), Z_H = 1 (zeta_H = 1.24)
+        - Nuclear repulsion energy: V_nuc = 2 / R Hartree
 
     Integrals:
-        Transcribed atomic orbital integrals (zeta_He = 2.0925, zeta_H = 1.24):
+        Computed from STO-3G 1s Gaussians via restricted Hartree-Fock (`rhf`).
+        The sign of each MO column is fixed so its largest-magnitude coefficient is positive.
+        At R = 1.4632 a.u., the transcribed atomic orbital integrals (zeta_He = 2.0925, zeta_H = 1.24) are:
             h_11 = -2.652744, h_12 = h_21 = -1.347205, h_22 = -1.731828
             S_12 = 0.450770
             (11|11) = 1.307152, (21|11) = 0.437279, (21|21) = 0.177267
@@ -212,42 +214,19 @@ def heh_sto3g_integrals(
     nuclear_repulsion : float
         Nuclear repulsion energy V_nuc = 2/R in Hartree.
     """
-    if not np.isclose(bond_length_au, 1.4632, atol=1e-3):
-        raise ValueError(
-            f"Unsupported bond length: {bond_length_au} a.u. Supported: 1.4632"
-        )
+    r_val = float(bond_length_au)
+    if r_val <= 0.0:
+        raise ValueError(f"bond_length_au must be positive, got {bond_length_au}")
 
-    v_nuc = 2.0 / float(bond_length_au)
-
-    h1 = np.array([
-        [-2.63007671,  0.24154815],
-        [ 0.24154815, -1.34832103],
-    ], dtype=float)
-
-    h2 = np.zeros((2, 2, 2, 2), dtype=float)
-    # Chemist notation (pq|rs) with 8-fold real symmetry
-    g_0000 = 1.03262451
-    g_1111 = 0.75595698
-    g_0011 = 0.74896193
-    g_0110 = 0.21127047
-    g_0001 = -0.24154822
-    g_1110 = -0.01882696
-
-    def set_sym8(p: int, q: int, r: int, s: int, val: float) -> None:
-        for idx in [
-            (p, q, r, s), (q, p, r, s), (p, q, s, r), (q, p, s, r),
-            (r, s, p, q), (s, r, p, q), (r, s, q, p), (s, r, q, p),
-        ]:
-            h2[idx] = val
-
-    set_sym8(0, 0, 0, 0, g_0000)
-    set_sym8(1, 1, 1, 1, g_1111)
-    set_sym8(0, 0, 1, 1, g_0011)
-    set_sym8(0, 1, 1, 0, g_0110)
-    set_sym8(0, 0, 0, 1, g_0001)
-    set_sym8(1, 1, 1, 0, g_1110)
-
-    return h1, h2, v_nuc
+    ao = ao_integrals(
+        [
+            (2.0, 2.0925, [0.0, 0.0, 0.0]),
+            (1.0, 1.24, [0.0, 0.0, r_val]),
+        ]
+    )
+    _, _, c_mat, _ = rhf(ao, n_electrons=2)
+    h1, h2 = mo_transform(c_mat, ao.h, ao.eri)
+    return h1, h2, ao.v_nuc
 
 
 def heh_sto3g_hamiltonian(
