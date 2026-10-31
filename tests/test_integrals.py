@@ -17,7 +17,7 @@ from eigenlab.integrals import (
     mo_transform,
     sto3g_1s,
 )
-from eigenlab.molecular import H_ATOM_STO3G_ENERGY
+from eigenlab.molecular import H_ATOM_STO3G_ENERGY, h2_sto3g_integrals
 
 
 def test_gaussian_overlap():
@@ -316,6 +316,23 @@ def test_minimal_basis_orbitals_and_mo_transform():
         assert np.allclose(h_mo, h_mo.T, atol=1e-14)
         # By inversion symmetry, <σ_g | h | σ_u> = 0
         assert np.isclose(h_mo[0, 1], 0.0, atol=1e-14)
+
+
+def test_h2_table_reproduced():
+    # Phase 8: The table, reproduced
+    # At R = 1.0, 1.401, 2.0, 3.0, the MO integrals from phase 7 match the
+    # h2_sto3g_integrals table to 1e-5, entry by entry.
+    for R in [1.0, 1.401, 2.0, 3.0]:
+        atoms = [(1.0, 1.24, [0.0, 0.0, 0.0]), (1.0, 1.24, [0.0, 0.0, R])]
+        S, h, eri, v_nuc = ao_integrals(atoms)
+        C = h2_symmetry_orbitals(S)
+        h_mo, eri_mo = mo_transform(C, h, eri)
+
+        h1_tab, h2_tab, v_nuc_tab = h2_sto3g_integrals(R)
+        assert np.isclose(v_nuc, v_nuc_tab, atol=1e-12)
+        assert np.allclose(h_mo, h1_tab, atol=1e-5)
+        assert np.allclose(eri_mo, h2_tab, atol=1e-5)
+
 
 
 
