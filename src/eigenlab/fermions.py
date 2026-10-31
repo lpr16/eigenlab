@@ -493,3 +493,22 @@ def natural_occupations(
         raise ValueError("Must provide n or a square one-particle RDM matrix")
     evals = np.linalg.eigvalsh(rdm)
     return np.sort(np.real(evals))[::-1]
+
+
+def peschel_entropy(corr_submatrix: np.ndarray) -> float:
+    """Free-fermion entanglement entropy in bits from the eigenvalues of a correlation submatrix C_A.
+
+    S = -sum_k [nu_k log2(nu_k) + (1 - nu_k) log2(1 - nu_k)] with 0 log2 0 = 0.
+    """
+    c_a = np.asarray(corr_submatrix, dtype=complex)
+    if c_a.ndim != 2 or c_a.shape[0] != c_a.shape[1]:
+        raise ValueError(f"Expected square correlation submatrix, got shape {c_a.shape}")
+    evals = np.real(np.linalg.eigvalsh(c_a))
+    total = 0.0
+    for nu in evals:
+        if 1e-15 < nu < 1.0 - 1e-15:
+            total -= float(nu * np.log2(nu) + (1.0 - nu) * np.log2(1.0 - nu))
+    if abs(total) < 1e-14:
+        return 0.0
+    return total
+

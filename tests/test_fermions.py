@@ -905,3 +905,59 @@ def test_tag_sectors_bravyi_kitaev():
     half = (vac + bravyi_kitaev_adag(0, n).to_matrix() @ vac) / np.sqrt(2.0)
     with pytest.raises(ValueError):
         tag_sectors(half, 2, mapping="bravyi_kitaev")
+
+
+def test_peschel_correlation_matrix_entanglement():
+    # Phase 36: Peschel's correlation matrix
+    from eigenlab.fermions import (
+        embed_occupation_state,
+        occupation_block,
+        one_particle_rdm,
+        peschel_entropy,
+        tight_binding_chain,
+    )
+    from eigenlab.states import bipartite_entropy
+
+    t = 1.0
+    for n in [6, 8]:
+        n_occ = n // 2
+
+        # Build the single-particle matrix M_{i,i+1} = M_{i+1,i} = -t
+        m_sp = np.zeros((n, n), dtype=float)
+        for i in range(n - 1):
+            m_sp[i, i + 1] = m_sp[i + 1, i] = -t
+
+        sp_evals, sp_evecs = np.linalg.eigh(m_sp)
+        expected_sp = np.sort([-2.0 * t * np.cos(np.pi * k / (n + 1)) for k in range(1, n + 1)])
+        assert np.allclose(sp_evals, expected_sp, atol=1e-12)
+        # No zero energy and no degeneracy for even n
+        assert np.all(np.abs(sp_evals) > 1e-3)
+        assert np.all(np.diff(sp_evals) > 1e-3)
+
+        # Correlation matrix C_ij = Σ_{k occupied} φ_k(i) φ_k(j)
+        phi_occ = sp_evecs[:, :n_occ]
+        C = phi_occ @ phi_occ.T
+
+        # Unique half-filled ground state from the N = n/2 block embedded back into 2^n space
+        h_tb = tight_binding_chain(n, t=t)
+        block = occupation_block(h_tb, n_particles=n_occ, n_orbitals=n)
+        mb_evals, mb_evecs = np.linalg.eigh(block)
+        assert np.isclose(mb_evals[0], np.sum(sp_evals[:n_occ]), atol=1e-10)
+        assert mb_evals[1] - mb_evals[0] > 1e-3
+        gs = embed_occupation_state(mb_evecs[:, 0], n_particles=n_occ, n_orbitals=n)
+
+        gamma = one_particle_rdm(gs, n)
+
+        for ell in range(1, n):
+            c_a = C[:ell, :ell]
+            assert np.allclose(gamma[:ell, :ell], c_a, atol=1e-10)
+
+            nu = np.real(np.linalg.eigvalsh(c_a))
+            s_peschel = sum(
+                -float(v * np.log2(v) + (1.0 - v) * np.log2(1.0 - v))
+                for v in nu
+                if 1e-15 < v < 1.0 - 1e-15
+            )
+            assert np.isclose(s_peschel, peschel_entropy(c_a), atol=1e-14)
+            assert np.isclose(s_peschel, bipartite_entropy(gs, ell), atol=1e-8)
+
