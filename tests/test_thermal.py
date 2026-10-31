@@ -1,9 +1,17 @@
 import numpy as np
 
-from eigenlab.hamiltonian import eigensystem, transverse_ising
+from eigenlab.fermions import kitaev_bdg_matrix, kitaev_chain
+from eigenlab.hamiltonian import eigensystem, transverse_ising, transverse_ising_bdg_matrix
 from eigenlab.pauli import Z
 from eigenlab.states import density
-from eigenlab.thermal import gibbs, trace_distance
+from eigenlab.thermal import (
+    bdg_partition_function,
+    gibbs,
+    ising_partition_function,
+    kitaev_partition_function,
+    partition_function,
+    trace_distance,
+)
 
 
 def test_gibbs_state():
@@ -31,3 +39,43 @@ def test_gibbs_state():
     ground_proj = density(evecs[:, 0])
     rho_50 = gibbs(h_ising, 50.0)
     assert trace_distance(rho_50, ground_proj) < 1e-6
+
+
+def test_ising_and_kitaev_partition_function_from_modes():
+    # Phase 33: The Ising partition function from its modes
+    # Z = Σ_ν e^{−β Σ_k (ν_k − 1/2) ε_k} = Π_k 2 cosh(β ε_k / 2).
+    # For n = 2, …, 6 and β in {0.1, 1, 3}, matches Tr e^{−βH} to 1e-8 relative
+    # for both transverse_ising and kitaev_chain.
+    for n in range(2, 7):
+        h_ising = transverse_ising(n, 1.0, 0.8)
+        bdg_ising = transverse_ising_bdg_matrix(n, coupling=1.0, field=0.8)
+        eps_ising = np.linalg.eigvalsh(bdg_ising)[n:]
+        assert np.all(eps_ising >= -1e-12)
+
+        h_kit = kitaev_chain(n, t=0.9, delta=1.2, mu=0.35)
+        bdg_kit = kitaev_bdg_matrix(n, t=0.9, delta=1.2, mu=0.35)
+        eps_kit = np.linalg.eigvalsh(bdg_kit)[n:]
+        assert np.all(eps_kit >= -1e-12)
+
+        for beta in [0.1, 1.0, 3.0]:
+            z_ising_exact = partition_function(h_ising, beta)
+            z_ising_modes = float(np.prod(2.0 * np.cosh(0.5 * beta * eps_ising)))
+            assert np.isclose(z_ising_modes, z_ising_exact, rtol=1e-8, atol=0.0)
+            assert np.isclose(
+                ising_partition_function(n, beta, coupling=1.0, field=0.8),
+                z_ising_exact,
+                rtol=1e-8,
+                atol=0.0,
+            )
+
+            z_kit_exact = partition_function(h_kit, beta)
+            z_kit_modes = float(np.prod(2.0 * np.cosh(0.5 * beta * eps_kit)))
+            assert np.isclose(z_kit_modes, z_kit_exact, rtol=1e-8, atol=0.0)
+            assert np.isclose(
+                kitaev_partition_function(n, beta, t=0.9, delta=1.2, mu=0.35),
+                z_kit_exact,
+                rtol=1e-8,
+                atol=0.0,
+            )
+            assert np.isclose(bdg_partition_function(bdg_kit, beta), z_kit_exact, rtol=1e-8, atol=0.0)
+
