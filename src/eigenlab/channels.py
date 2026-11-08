@@ -107,3 +107,54 @@ def choi(
             unit[i, j] = 1.0
             out += np.kron(unit, np.asarray(channel(unit), dtype=complex))
     return out
+
+
+def _as_square_operator(op) -> np.ndarray:
+    if hasattr(op, "to_matrix"):
+        mat = np.asarray(op.to_matrix(), dtype=complex)
+    elif isinstance(op, str):
+        from eigenlab.pauli import pauli
+
+        mat = pauli(op)
+    else:
+        mat = np.asarray(op, dtype=complex)
+    if mat.ndim != 2 or mat.shape[0] != mat.shape[1]:
+        raise ValueError(f"Expected square matrix operator, got shape {mat.shape}")
+    if mat.shape[0] > 16:
+        raise ValueError(f"Liouvillians only supported up to 4 qubits (dim <= 16), got dim={mat.shape[0]}")
+    return mat
+
+
+def lindbladian(H, jumps: Sequence[np.ndarray]) -> np.ndarray:
+    """Build the row-major Liouvillian superoperator ``L`` of shape ``(d^2, d^2)``."""
+    h_mat = _as_square_operator(H)
+    d = h_mat.shape[0]
+    ident = np.eye(d, dtype=complex)
+    liouv = -1j * (np.kron(h_mat, ident) - np.kron(ident, h_mat.T))
+    for jump in jumps:
+        l_k = _as_square_operator(jump)
+        if l_k.shape != (d, d):
+            raise ValueError(f"Jump operator shape {l_k.shape} does not match H shape {(d, d)}")
+        l_dag_l = l_k.conj().T @ l_k
+        liouv = liouv + (
+            np.kron(l_k, l_k.conj())
+            - 0.5 * np.kron(l_dag_l, ident)
+            - 0.5 * np.kron(ident, l_dag_l.T)
+        )
+    return liouv
+
+
+def lindblad_evolve(H, jumps: Sequence[np.ndarray], rho: np.ndarray, time: float) -> np.ndarray:
+    """Evolve ``rho`` under the Lindblad master equation for ``time`` via ``expm(L * time)``."""
+    liouv = lindbladian(H, jumps)
+    d = int(np.round(np.sqrt(liouv.shape[0])))
+    arr = np.asarray(rho, dtype=complex)
+    if arr.ndim == 1:
+        mat = density(arr)
+    else:
+        mat = arr
+    if mat.shape != (d, d):
+        raise ValueError(f"rho shape {mat.shape} does not match Hamiltonian dimension {d}")
+    vec_out = expm(liouv * float(time)) @ mat.reshape(-1)
+    return vec_out.reshape((d, d))
+

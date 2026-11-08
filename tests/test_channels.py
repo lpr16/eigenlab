@@ -142,3 +142,34 @@ def test_choi_matrix():
     swap = np.array([[1, 0, 0, 0], [0, 0, 1, 0], [0, 1, 0, 0], [0, 0, 0, 1]], dtype=complex)
     assert np.allclose(c_t, swap, atol=1e-12)
     assert np.allclose(np.sort(np.linalg.eigvalsh(c_t)), [-1.0, 1.0, 1.0, 1.0], atol=1e-12)
+
+
+def test_lindbladian():
+    # Phase 30: The Lindbladian
+    from eigenlab.channels import lindblad_evolve, lindbladian
+    from eigenlab.dynamics import unitary
+    from eigenlab.pauli import X, Z
+
+    sigma_minus = np.array([[0.0, 1.0], [0.0, 0.0]], dtype=complex)
+    h_mat = -0.6 * Z + 0.35 * X
+    jumps = [np.sqrt(0.4) * sigma_minus, np.sqrt(0.15) * Z]
+
+    L = lindbladian(h_mat, jumps)
+    assert L.shape == (4, 4)
+
+    # vec(I)^T L = 0: trace is preserved
+    vec_I = np.eye(2, dtype=complex).reshape(-1)
+    assert np.allclose(vec_I @ L, np.zeros(4, dtype=complex), atol=1e-12)
+
+    # With no jumps, the result is U rho U†
+    rho0 = _mixed_qubit()
+    t = 1.3
+    u = unitary(h_mat, t)
+    assert np.allclose(lindblad_evolve(h_mat, [], rho0, t), u @ rho0 @ u.conj().T, atol=1e-12)
+
+    # Output with jumps is Hermitian, has trace 1, and has eigenvalues >= -1e-12
+    rho_t = lindblad_evolve(h_mat, jumps, rho0, t)
+    assert np.allclose(rho_t, rho_t.conj().T, atol=1e-12)
+    assert np.isclose(np.trace(rho_t), 1.0, atol=1e-12)
+    assert np.min(np.linalg.eigvalsh(rho_t)) >= -1e-12
+

@@ -230,3 +230,16 @@ def expm(A: np.ndarray) -> np.ndarray:
     return out
 
 
+def lindbladian(H, jumps):
+    from eigenlab.channels import lindbladian as _lindbladian
+
+    return _lindbladian(H, jumps)
+
+
+def lindblad_evolve(H, jumps, rho: np.ndarray, time: float) -> np.ndarray:
+    from eigenlab.channels import lindblad_evolve as _lindblad_evolve
+
+    return _lindblad_evolve(H, jumps, rho, time)
+
+
+
