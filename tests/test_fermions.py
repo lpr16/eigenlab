@@ -1019,3 +1019,82 @@ def test_ssh_dimers_entanglement():
     assert np.isclose(peschel_entropy(C[:3, :3]), 1.0, atol=1e-12)
 
 
+def test_parity_operators():
+    # Phase 1: Parity operators
+    from eigenlab.fermions import (
+        jordan_wigner_a,
+        jordan_wigner_adag,
+        parity_a,
+        parity_adag,
+    )
+    from eigenlab.states import basis
+
+    def build_parity_pi(n: int) -> np.ndarray:
+        dim = 1 << n
+        pi_mat = np.zeros((dim, dim), dtype=complex)
+        for x in range(dim):
+            bits = [(x >> (n - 1 - q)) & 1 for q in range(n)]
+            p_bits = []
+            acc = 0
+            for b in bits:
+                acc ^= b
+                p_bits.append(acc)
+            y = 0
+            for b in p_bits:
+                y = (y << 1) | b
+            pi_mat[y, x] = 1.0
+        return pi_mat
+
+    # 1. Test oracle Π @ a^{JW} @ Π.T for n <= 4
+    for n in [1, 2, 3, 4]:
+        pi_mat = build_parity_pi(n)
+        for p in range(n):
+            par_mat = parity_a(p, n).to_matrix()
+            jw_mat = jordan_wigner_a(p, n).to_matrix()
+            oracle = pi_mat @ jw_mat @ pi_mat.T
+            assert np.allclose(par_mat, oracle)
+
+            par_dag_mat = parity_adag(p, n).to_matrix()
+            jw_dag_mat = jordan_wigner_adag(p, n).to_matrix()
+            oracle_dag = pi_mat @ jw_dag_mat @ pi_mat.T
+            assert np.allclose(par_dag_mat, oracle_dag)
+
+    # 2. Anticommutation relations, square-zero, and vacuum for n <= 5
+    for n in range(1, 6):
+        dim = 1 << n
+        ident = np.eye(dim, dtype=complex)
+        zero = np.zeros((dim, dim), dtype=complex)
+        vac = basis(0, n)
+        a_mats = [parity_a(p, n).to_matrix() for p in range(n)]
+        adag_mats = [parity_adag(p, n).to_matrix() for p in range(n)]
+
+        for i in range(n):
+            ai = a_mats[i]
+            ai_dag = adag_mats[i]
+
+            # Vacuum is still basis(0, n)
+            assert np.allclose(ai @ vac, 0.0)
+
+            # a_i² = 0
+            assert np.allclose(ai @ ai, zero)
+            assert np.allclose(ai_dag @ ai_dag, zero)
+
+            # Check dagger property
+            assert parity_a(i, n).dagger() == parity_adag(i, n)
+            assert np.allclose(ai.conj().T, ai_dag)
+
+            for j in range(n):
+                aj = a_mats[j]
+                aj_dag = adag_mats[j]
+
+                # {a_i, a†_j} = δ_ij I
+                anticom_adag = ai @ aj_dag + aj_dag @ ai
+                expected_adag = ident if i == j else zero
+                assert np.allclose(anticom_adag, expected_adag)
+
+                # {a_i, a_j} = 0
+                anticom_a = ai @ aj + aj @ ai
+                assert np.allclose(anticom_a, zero)
+
+
+

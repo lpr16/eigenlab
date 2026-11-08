@@ -115,6 +115,33 @@ bravyi_kitaev_annihilate = bravyi_kitaev_a
 bravyi_kitaev_create = bravyi_kitaev_adag
 
 
+def parity_a(p: int, n: int) -> Hamiltonian:
+    """Annihilation operator a_p for orbital p out of n fermions via parity mapping."""
+    if not 0 <= p < n:
+        raise ValueError(f"orbital {p} out of range for {n} fermions")
+    jw = jordan_wigner_a(p, n)
+    return _conjugate_by_cnots(jw, [(i, i + 1) for i in range(n - 1)])
+
+
+def parity_adag(p: int, n: int) -> Hamiltonian:
+    """Creation operator a†_p for orbital p out of n fermions via parity mapping."""
+    if not 0 <= p < n:
+        raise ValueError(f"orbital {p} out of range for {n} fermions")
+    jw = jordan_wigner_adag(p, n)
+    return _conjugate_by_cnots(jw, [(i, i + 1) for i in range(n - 1)])
+
+
+def parity(p: int, n: int, dagger: bool = False) -> Hamiltonian:
+    """Parity operator for orbital p. Returns a†_p if dagger=True, else a_p."""
+    if dagger:
+        return parity_adag(p, n)
+    return parity_a(p, n)
+
+
+parity_annihilate = parity_a
+parity_create = parity_adag
+
+
 def _ladder_operators(mapping: str):
     """Return the (annihilation, creation) builders for `mapping`."""
     map_norm = mapping.lower()
