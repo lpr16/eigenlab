@@ -463,5 +463,19 @@ def test_heisenberg_ring():
         assert np.isclose(h_op.expectation(basis(0, n)), float(n), atol=1e-12)
 
 
+def test_momentum_blocks():
+    # Phase 10: Momentum blocks
+    from eigenlab.hamiltonian import heisenberg_ring, momentum_blocks
+
+    for n in [4, 5, 6, 7, 8]:
+        h = heisenberg_ring(n)
+        blks = momentum_blocks(h, n)
+        assert len(blks) == n
+        assert sum(len(b) for b in blks) == (1 << n)
+        union_spec = np.sort(np.concatenate(blks))
+        assert np.allclose(union_spec, spectrum(h), atol=1e-10)
+
+
+
 
 

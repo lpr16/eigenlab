@@ -490,5 +490,42 @@ def heisenberg_ring(qubits: int, coupling: float = 1.0) -> Hamiltonian:
 heisenberg_ring_terms = heisenberg_ring
 
 
+def momentum_blocks(
+    hamiltonian: np.ndarray | Hamiltonian, n: int | None = None
+) -> list[np.ndarray]:
+    """Project `hamiltonian` onto each translation momentum sector k = 0, ..., n-1 and return ascending spectra."""
+    if isinstance(hamiltonian, Hamiltonian):
+        h_mat = hamiltonian.to_matrix()
+        if n is None:
+            n = hamiltonian.qubits
+    else:
+        h_mat = np.asarray(hamiltonian, dtype=complex)
+        if n is None:
+            n = int(np.round(np.log2(h_mat.shape[0])))
+    dim = 1 << n
+    if h_mat.shape != (dim, dim):
+        raise ValueError(f"hamiltonian shape {h_mat.shape} does not match 2^{n} = {dim}")
+
+    t_mat = translation(n)
+    t_powers = [np.eye(dim, dtype=complex)]
+    for _ in range(1, n):
+        t_powers.append(t_powers[-1] @ t_mat)
+
+    blocks: list[np.ndarray] = []
+    for k in range(n):
+        pk = np.zeros((dim, dim), dtype=complex)
+        for m in range(n):
+            phase = np.exp(-2j * np.pi * k * m / n)
+            pk += phase * t_powers[m]
+        pk /= float(n)
+        w, u = np.linalg.eigh(pk)
+        basis_k = u[:, w > 0.5]
+        hk = basis_k.conj().T @ h_mat @ basis_k
+        spec_k = np.sort(np.real(np.linalg.eigvalsh(hk)))
+        blocks.append(spec_k)
+    return blocks
+
+
+
 
 
