@@ -619,6 +619,34 @@ def test_z_symmetry_qubits():
     assert np.allclose(heh_par_mat @ z3, z3 @ heh_par_mat)
 
 
+def test_taper_h2_on_two_qubits():
+    # Phase 4: H2 on two qubits
+    from eigenlab.hamiltonian import spectrum, taper
+    from eigenlab.molecular import h2_sto3g_hamiltonian
+
+    for R in [1.0, 1.401, 2.0, 3.0]:
+        h4 = h2_sto3g_hamiltonian(R, mapping="parity")
+        spec4 = spectrum(h4)
+
+        specs2 = []
+        for s1 in (+1, -1):
+            for s3 in (+1, -1):
+                h2 = taper(h4, [1, 3], [s1, s3])
+                assert h2.qubits == 2
+                sp = spectrum(h2)
+                assert len(sp) == 4
+                specs2.append(sp)
+                if (s1, s3) == (+1, +1):
+                    # Ground state sits in (+1, +1): even N and even sigma_g occupation
+                    assert np.isclose(sp[0], spec4[0], atol=1e-10)
+                    if R == 1.401:
+                        assert np.isclose(sp[0], -1.13727, atol=1e-5)
+
+        combined = np.sort(np.concatenate(specs2))
+        assert np.allclose(combined, spec4, atol=1e-10)
+
+
+
 
 
 

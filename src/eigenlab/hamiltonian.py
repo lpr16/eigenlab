@@ -407,3 +407,54 @@ def z_symmetry_qubits(
         return list(range(n))
     return [q for q in range(n) if all(label[q] in ("I", "Z") for _, label in active_terms)]
 
+
+def taper(
+    hamiltonian: Hamiltonian | Sequence[tuple[complex | float, str]],
+    qubits: Sequence[int],
+    signs: Sequence[int],
+) -> Hamiltonian:
+    """Taper a Hamiltonian on single-qubit Z symmetries.
+
+    On each listed qubit, replaces Z by its sign (+1 or -1) and I by 1, then
+    deletes the qubit and combines equal Pauli strings.
+    """
+    ham = hamiltonian if isinstance(hamiltonian, Hamiltonian) else Hamiltonian(hamiltonian)
+    ham = ham.simplify()
+    qubits_list = list(qubits)
+    signs_list = list(signs)
+    if len(qubits_list) != len(signs_list):
+        raise ValueError("qubits and signs must have the same length")
+    if len(set(qubits_list)) != len(qubits_list):
+        raise ValueError("duplicate qubits in taper")
+    n = ham.qubits
+    for q in qubits_list:
+        if not 0 <= q < n:
+            raise ValueError(f"qubit {q} out of range for {n} qubits")
+    for s in signs_list:
+        if s not in (1, -1):
+            raise ValueError(f"sign {s} must be +1 or -1")
+
+    q_to_s = dict(zip(qubits_list, signs_list))
+    drop = set(qubits_list)
+    new_terms: list[tuple[complex, str]] = []
+    for coeff, label in ham.terms:
+        if abs(coeff) <= 1e-12:
+            continue
+        new_c = coeff
+        for q, s in q_to_s.items():
+            op = label[q]
+            if op == "Z":
+                new_c = new_c * s
+            elif op == "I":
+                pass
+            else:
+                raise ValueError(f"qubit {q} has operator {op}, not a single-qubit Z symmetry")
+        new_l = "".join(ch for idx, ch in enumerate(label) if idx not in drop)
+        new_terms.append((new_c, new_l))
+
+    rem = n - len(qubits_list)
+    if not new_terms:
+        new_terms = [(0.0j, "I" * rem)]
+    return Hamiltonian(new_terms).simplify()
+
+

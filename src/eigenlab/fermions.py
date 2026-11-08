@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from eigenlab.hamiltonian import Hamiltonian, z_symmetry_qubits
+from eigenlab.hamiltonian import Hamiltonian, taper, z_symmetry_qubits
 from eigenlab.states import bipartite_entropy
 
 
