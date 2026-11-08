@@ -594,6 +594,28 @@ def test_holevo_quantity():
     assert 0.0 <= chi_mix <= classical_entropy([0.3, 0.7]) + 1e-12
 
 
+def test_qfi_pure_state():
+    # Phase 24: Quantum Fisher information of a pure state
+    from eigenlab.hamiltonian import Hamiltonian
+    from eigenlab.states import qfi
+
+    for n in range(1, 9):
+        gen = Hamiltonian([(0.5, "I" * i + "Z" + "I" * (n - 1 - i)) for i in range(n)])
+        dim = 1 << n
+
+        # |+>^{⊗n}: n
+        plus_n = np.ones(dim, dtype=complex) / np.sqrt(float(dim))
+        assert np.isclose(qfi(plus_n, gen), float(n), atol=1e-12)
+
+        # basis(0, n): 0
+        assert qfi(basis(0, n), gen) == 0.0
+
+        # ghz(n): n^2 (for n = 1, (|0> + |1>)/sqrt(2) = |+> has 1^2 = 1)
+        g_n = plus_n if n == 1 else ghz(n)
+        assert np.isclose(qfi(g_n, gen), float(n * n), atol=1e-12)
+
+
+
 
 
 

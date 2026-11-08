@@ -694,6 +694,44 @@ def holevo(probs: list[float] | tuple[float, ...] | np.ndarray, states: list[np.
     return float(chi)
 
 
+def _generator_matrix(generator, dim: int) -> np.ndarray:
+    if hasattr(generator, "to_matrix"):
+        mat = np.asarray(generator.to_matrix(), dtype=complex)
+    elif isinstance(generator, str):
+        from eigenlab.pauli import pauli
+
+        mat = pauli(generator)
+    else:
+        mat = np.asarray(generator, dtype=complex)
+    if mat.shape != (dim, dim):
+        raise ValueError(f"generator shape {mat.shape} does not match state dimension {dim}")
+    return mat
+
+
+def qfi(state: np.ndarray, generator) -> float:
+    """Quantum Fisher information of ``state`` with respect to Hermitian ``generator``.
+
+    For a pure state ket ``|psi>``, returns ``4 * Var(G) = 4 * (<G^2> - <G>^2)``.
+    """
+    arr = np.asarray(state, dtype=complex)
+    if arr.ndim == 1 or (arr.ndim == 2 and (arr.shape[0] == 1 or arr.shape[1] == 1)):
+        ket = arr.reshape(-1)
+        norm = np.linalg.norm(ket)
+        if norm == 0:
+            raise ValueError("state has zero norm")
+        ket = ket / norm
+        g_mat = _generator_matrix(generator, ket.size)
+        g_ket = g_mat @ ket
+        mean_g = float(np.real(np.vdot(ket, g_ket)))
+        mean_g2 = float(np.real(np.vdot(g_ket, g_ket)))
+        val = 4.0 * max(0.0, mean_g2 - mean_g * mean_g)
+        if val < 1e-14:
+            return 0.0
+        return float(val)
+    raise ValueError("Expected ket state")
+
+
+
 
 
 
