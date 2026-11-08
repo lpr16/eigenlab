@@ -506,6 +506,31 @@ def test_heisenberg_ring_one_magnon():
                 assert np.isclose(s2_val, (n / 2.0 - 1.0) * (n / 2.0), atol=1e-12)
 
 
+def test_heisenberg_ring_four_sites_sublattice():
+    # Phase 12: Four sites from two sublattice spins
+    # On 4 sites, each even site {0, 2} couples to both odd sites {1, 3}:
+    # H = 4 S_A · S_B = 2 [S(S+1) - S_A(S_A+1) - S_B(S_B+1)]
+    from eigenlab.hamiltonian import heisenberg_ring
+
+    levels: list[float] = []
+    for s_a in (0, 1):
+        for s_b in (0, 1):
+            for s in range(abs(s_a - s_b), s_a + s_b + 1):
+                energy = 2.0 * (s * (s + 1) - s_a * (s_a + 1) - s_b * (s_b + 1))
+                multiplicity = 2 * s + 1
+                levels.extend([energy] * multiplicity)
+
+    expected = np.sort(levels)
+    assert len(expected) == 16
+    assert np.allclose(
+        expected,
+        [-8.0] * 1 + [-4.0] * 3 + [0.0] * 7 + [4.0] * 5,
+        atol=1e-12,
+    )
+    assert np.allclose(spectrum(heisenberg_ring(4)), expected, atol=1e-12)
+
+
+
 
 
 
