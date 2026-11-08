@@ -459,3 +459,68 @@ def translation(n: int) -> np.ndarray:
     return _translation(n)
 
 
+def teleport_outcomes(
+    psi: np.ndarray,
+    resource: np.ndarray | None = None,
+) -> dict[tuple[int, int], tuple[float, np.ndarray]]:
+    """Run the 3-qubit teleportation circuit and return ``{(m0, m1): (prob, corrected_state)}``.
+
+    If ``psi`` and ``resource`` are kets (default ``resource = bell("phi+")``), uses
+    ``post_measure`` and returns corrected 1-qubit kets on qubit 2. If either is a
+    density matrix, uses projectors and ``partial_trace`` and returns corrected 2x2
+    density matrices on qubit 2.
+    """
+    from eigenlab.pauli import I, X, Z
+
+    if resource is None:
+        resource = bell("phi+")
+
+    h_1q = np.array([[1.0, 1.0], [1.0, -1.0]], dtype=complex) / np.sqrt(2.0)
+    cnot_01 = np.array(
+        [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 0, 1], [0, 0, 1, 0]],
+        dtype=complex,
+    )
+    u_alice = np.kron(np.kron(h_1q, I), I) @ np.kron(cnot_01, I)
+
+    psi_arr = np.asarray(psi, dtype=complex)
+    res_arr = np.asarray(resource, dtype=complex)
+
+    if psi_arr.ndim == 1 and res_arr.ndim == 1:
+        ket_in = np.kron(psi_arr / np.linalg.norm(psi_arr), res_arr / np.linalg.norm(res_arr))
+        ket_alice = u_alice @ ket_in
+        outcomes: dict[tuple[int, int], tuple[float, np.ndarray]] = {}
+        for m0 in (0, 1):
+            s0 = 1 if m0 == 0 else -1
+            p0_plus, p0_minus = pauli_probabilities(ket_alice, "ZII")
+            p0 = p0_plus if m0 == 0 else p0_minus
+            ket_m0 = post_measure(ket_alice, "ZII", s0)
+            for m1 in (0, 1):
+                s1 = 1 if m1 == 0 else -1
+                p1_plus, p1_minus = pauli_probabilities(ket_m0, "IZI")
+                p1 = p1_plus if m1 == 0 else p1_minus
+                ket_m01 = post_measure(ket_m0, "IZI", s1)
+                idx_01 = (m0 << 1) | m1
+                ket_q2 = np.array([ket_m01[idx_01 << 1], ket_m01[(idx_01 << 1) | 1]], dtype=complex)
+                ket_q2 = ket_q2 / np.linalg.norm(ket_q2)
+                corr = (Z if m0 else I) @ (X if m1 else I)
+                outcomes[(m0, m1)] = (float(p0 * p1), corr @ ket_q2)
+        return outcomes
+
+    rho_psi = density(psi_arr) if psi_arr.ndim == 1 else psi_arr / np.trace(psi_arr)
+    rho_res = density(res_arr) if res_arr.ndim == 1 else res_arr / np.trace(res_arr)
+    rho_in = np.kron(rho_psi, rho_res)
+    rho_alice = u_alice @ rho_in @ u_alice.conj().T
+    outcomes_rho: dict[tuple[int, int], tuple[float, np.ndarray]] = {}
+    for m0 in (0, 1):
+        for m1 in (0, 1):
+            ket_m = basis((m0 << 1) | m1, 2)
+            proj_m = np.kron( np.outer(ket_m, ket_m.conj()), I )
+            sub = proj_m @ rho_alice @ proj_m
+            prob = float(np.real(np.trace(sub)))
+            rho_q2 = np.asarray(partial_trace(sub / prob, 3, keep=2), dtype=complex)
+            corr = (Z if m0 else I) @ (X if m1 else I)
+            outcomes_rho[(m0, m1)] = (prob, corr @ rho_q2 @ corr.conj().T)
+    return outcomes_rho
+
+
+

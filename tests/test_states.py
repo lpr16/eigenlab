@@ -392,3 +392,29 @@ def test_bipartite_entropy_at_any_cut():
     psi_4 = 0.6 * basis(0b0000, 4) + 0.5 * basis(0b0110, 4) + np.sqrt(1.0 - 0.36 - 0.25) * basis(0b1111, 4)
     assert np.isclose(bipartite_entropy(psi_4, 2), entanglement_entropy(psi_4), atol=1e-12)
 
+
+def test_teleportation():
+    # Phase 18: Teleportation
+    from eigenlab.states import teleport_outcomes
+
+    generic_ket = np.cos(0.3) * ZERO + np.exp(0.7j) * np.sin(0.3) * ONE
+    test_kets = [ZERO, ONE, PLUS, PLUS_I, generic_ket]
+
+    for psi in test_kets:
+        # 1) Pure-state trajectory using post_measure
+        outcomes = teleport_outcomes(psi)
+        assert len(outcomes) == 4
+        for (m0, m1), (prob, ket_corr) in outcomes.items():
+            assert np.isclose(prob, 0.25, atol=1e-12)
+            # Corrected qubit 2 equals |psi> up to a global phase
+            overlap = abs(np.vdot(psi, ket_corr))
+            assert np.isclose(overlap, 1.0, atol=1e-12)
+            assert np.allclose(density(ket_corr), density(psi), atol=1e-12)
+
+        # 2) Density-matrix trajectory using projectors and partial_trace
+        outcomes_rho = teleport_outcomes(density(psi))
+        for (m0, m1), (prob, rho_corr) in outcomes_rho.items():
+            assert np.isclose(prob, 0.25, atol=1e-12)
+            assert np.allclose(rho_corr, density(psi), atol=1e-12)
+
+
