@@ -210,3 +210,30 @@ def test_lindblad_closed_forms_recovered():
             assert np.allclose(out_deph, dephasing(rho, gamma, t), atol=1e-10)
 
 
+def test_driven_damped_qubit_steady_state():
+    # Phase 32: A driven, damped qubit
+    from eigenlab.channels import lindblad_evolve, lindblad_steady_state, lindbladian
+    from eigenlab.pauli import X
+
+    sigma_minus = np.array([[0.0, 1.0], [0.0, 0.0]], dtype=complex)
+
+    for gamma, rabi in [(0.7, 1.3), (1.2, 0.4), (0.3, 2.5)]:
+        h = 0.5 * rabi * X
+        jumps = [np.sqrt(gamma) * sigma_minus]
+        rho_ss = lindblad_steady_state(h, jumps)
+        L = lindbladian(h, jumps)
+
+        assert np.allclose(L @ rho_ss.reshape(-1), 0.0, atol=1e-12)
+        assert np.isclose(np.trace(rho_ss), 1.0, atol=1e-12)
+
+        expected_p1 = (rabi**2) / (gamma**2 + 2.0 * (rabi**2))
+        assert expected_p1 <= 0.5
+        assert np.isclose(np.real(rho_ss[1, 1]), expected_p1, atol=1e-10)
+        assert np.real(rho_ss[1, 1]) <= 0.5 + 1e-12
+
+        # lindblad_evolve at gamma * t = 50 lands on the same state to 1e-8
+        rho_long = lindblad_evolve(h, jumps, ZERO, 50.0 / gamma)
+        assert np.allclose(rho_long, rho_ss, atol=1e-8)
+
+
+

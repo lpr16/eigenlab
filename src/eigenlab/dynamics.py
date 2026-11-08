@@ -242,4 +242,11 @@ def lindblad_evolve(H, jumps, rho: np.ndarray, time: float) -> np.ndarray:
     return _lindblad_evolve(H, jumps, rho, time)
 
 
+def lindblad_steady_state(H, jumps) -> np.ndarray:
+    from eigenlab.channels import lindblad_steady_state as _lindblad_steady_state
+
+    return _lindblad_steady_state(H, jumps)
+
+
+
 

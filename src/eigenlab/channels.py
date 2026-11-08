@@ -158,3 +158,25 @@ def lindblad_evolve(H, jumps: Sequence[np.ndarray], rho: np.ndarray, time: float
     vec_out = expm(liouv * float(time)) @ mat.reshape(-1)
     return vec_out.reshape((d, d))
 
+
+def lindblad_steady_state(H, jumps: Sequence[np.ndarray]) -> np.ndarray:
+    """Solve ``L vec(rho) = 0`` with one equation replaced by ``Tr(rho) = 1``."""
+    liouv = lindbladian(H, jumps)
+    d = int(np.round(np.sqrt(liouv.shape[0])))
+    vec_i = np.eye(d, dtype=complex).reshape(-1)
+    mat = liouv.copy()
+    mat[0, :] = vec_i
+    rhs = np.zeros(d * d, dtype=complex)
+    rhs[0] = 1.0
+    try:
+        vec_rho = np.linalg.solve(mat, rhs)
+    except np.linalg.LinAlgError:
+        aug = np.vstack([liouv, vec_i[None, :]])
+        aug_rhs = np.zeros(d * d + 1, dtype=complex)
+        aug_rhs[-1] = 1.0
+        vec_rho, *_ = np.linalg.lstsq(aug, aug_rhs, rcond=None)
+    rho = vec_rho.reshape((d, d))
+    rho = 0.5 * (rho + rho.conj().T)
+    return rho / np.trace(rho)
+
+
