@@ -342,6 +342,22 @@ def toric_code_hamiltonian() -> Hamiltonian:
     return Hamiltonian([(-1.0, label) for label in stars + plaquettes])
 
 
+def toric_code_logicals() -> tuple[str, str, str, str]:
+    """Return ``(Z1_bar, X1_bar, Z2_bar, X2_bar)`` logical loop operators on the 2x2 torus."""
+    z1_edges = {_toric_h(0, 0), _toric_h(1, 0)}
+    x1_edges = {_toric_h(0, 0), _toric_h(0, 1)}
+    z2_edges = {_toric_v(0, 0), _toric_v(0, 1)}
+    x2_edges = {_toric_v(0, 0), _toric_v(1, 0)}
+    z1 = "".join("Z" if i in z1_edges else "I" for i in range(8))
+    x1 = "".join("X" if i in x1_edges else "I" for i in range(8))
+    z2 = "".join("Z" if i in z2_edges else "I" for i in range(8))
+    x2 = "".join("X" if i in x2_edges else "I" for i in range(8))
+    return z1, x1, z2, x2
+
+
+TORIC_LOGICAL_OPERATORS: tuple[str, str, str, str] = toric_code_logicals()
+
+
 __all__ = [
     "BIT_FLIP_STABILIZERS",
     "FIVE_QUBIT_STABILIZERS",
@@ -351,6 +367,7 @@ __all__ = [
     "STEANE_X_GENERATORS",
     "STEANE_Z_GENERATORS",
     "TORIC_CODE_STABILIZERS",
+    "TORIC_LOGICAL_OPERATORS",
     "TORIC_PLAQUETTE_STABILIZERS",
     "TORIC_STAR_STABILIZERS",
     "apply_pauli",
@@ -373,6 +390,7 @@ __all__ = [
     "steane_logical_states",
     "syndrome_projector",
     "toric_code_hamiltonian",
+    "toric_code_logicals",
     "toric_code_stabilizers",
     "transversal_clifford",
     "weight_k_paulis",

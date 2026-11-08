@@ -23,6 +23,7 @@ from eigenlab.codes import (
     stabilizers_commute,
     steane_logical_states,
     toric_code_hamiltonian,
+    toric_code_logicals,
     toric_code_stabilizers,
     transversal_clifford,
     weight_k_paulis,
@@ -350,6 +351,40 @@ def test_toric_code_ground_space_is_code_space():
     proj_gs = gs_vecs @ gs_vecs.conj().T
 
     assert np.allclose(proj_code, proj_gs, atol=1e-10)
+
+
+def test_toric_code_logical_loops():
+    # Phase 17: Logical loops
+    z1_bar, x1_bar, z2_bar, x2_bar = toric_code_logicals()
+    assert z1_bar == "ZIZIIIII"
+    assert x1_bar == "XIIIXIII"
+    assert z2_bar == "IZIIIZII"
+    assert x2_bar == "IXIXIIII"
+
+    stars, plaquettes = toric_code_stabilizers()
+    all_stabs = stars + plaquettes
+    six_gens = stars[:3] + plaquettes[:3]
+    group = stabilizer_group(six_gens)
+
+    logicals = (z1_bar, x1_bar, z2_bar, x2_bar)
+    # Each loop commutes with all eight stabilizers and none is in the stabilizer group
+    for loop in logicals:
+        assert error_syndrome(loop, all_stabs) == (1,) * 8
+        assert loop not in group
+
+    # Z1_bar anticommutes with X1_bar, Z2_bar anticommutes with X2_bar, every other pair commutes
+    anticomm_pairs = {(0, 1), (1, 0), (2, 3), (3, 2)}
+    for i, op_i in enumerate(logicals):
+        for j, op_j in enumerate(logicals):
+            if (i, j) in anticomm_pairs:
+                assert pauli_comm(op_i, op_j)[0] != 0
+                assert pauli_anti(op_i, op_j)[0] == 0
+            else:
+                assert pauli_comm(op_i, op_j)[0] == 0
+
+    # code_distance on the six generators returns 2
+    assert code_distance(six_gens) == 2
+
 
 
 
