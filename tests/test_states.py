@@ -522,6 +522,40 @@ def test_phase_estimation():
         assert np.max(probs) >= 4.0 / (np.pi**2)
 
 
+def test_mutual_information_and_conditional_entropy():
+    # Phase 22: Mutual information and conditional entropy
+    from eigenlab.states import conditional_entropy, mutual_information
+
+    def binary_entropy(p: float) -> float:
+        return float(-p * np.log2(p) - (1.0 - p) * np.log2(1.0 - p))
+
+    # Bell pair: I = 2 and S(A|B) = -1
+    phi_plus = bell("phi+")
+    assert np.isclose(mutual_information(phi_plus, 2, [0], [1]), 2.0, atol=1e-12)
+    assert np.isclose(conditional_entropy(phi_plus, 2, [0], [1]), -1.0, atol=1e-12)
+
+    # |0> ⊗ |+>: I = 0
+    prod = np.kron(ZERO, PLUS)
+    assert np.isclose(mutual_information(prod, 2, [0], [1]), 0.0, atol=1e-12)
+
+    # ghz(3), qubits 0 and 1: I = 1 and S(A|B) = 0
+    g3 = ghz(3)
+    assert np.isclose(mutual_information(g3, 3, [0], [1]), 1.0, atol=1e-12)
+    assert np.isclose(conditional_entropy(g3, 3, [0], [1]), 0.0, atol=1e-12)
+
+    # w_state(3), qubits 0 and 1: rho_AB and rho_A both have eigenvalues 2/3, 1/3, so I = h(1/3)
+    w3 = w_state(3)
+    rho_ab = partial_trace(w3, 3, keep=[0, 1])
+    rho_a = partial_trace(w3, 3, keep=[0])
+    evals_ab = np.sort(np.real(np.linalg.eigvalsh(rho_ab)))[::-1]
+    evals_a = np.sort(np.real(np.linalg.eigvalsh(rho_a)))[::-1]
+    assert np.allclose(evals_ab[:2], [2.0 / 3.0, 1.0 / 3.0], atol=1e-12)
+    assert np.allclose(evals_ab[2:], 0.0, atol=1e-12)
+    assert np.allclose(evals_a, [2.0 / 3.0, 1.0 / 3.0], atol=1e-12)
+    assert np.isclose(mutual_information(w3, 3, [0], [1]), binary_entropy(1.0 / 3.0), atol=1e-12)
+
+
+
 
 
 

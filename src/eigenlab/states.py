@@ -603,6 +603,59 @@ def phase_estimation(
     return probs
 
 
+def _normalize_disjoint_subsystems(
+    qubits: int,
+    a: int | list[int] | tuple[int, ...],
+    b: int | list[int] | tuple[int, ...],
+) -> tuple[list[int], list[int]]:
+    list_a = [a] if isinstance(a, int) else list(a)
+    list_b = [b] if isinstance(b, int) else list(b)
+    if not list_a or not list_b:
+        raise ValueError("Subsystems a and b must be non-empty.")
+    if len(set(list_a)) != len(list_a) or len(set(list_b)) != len(list_b):
+        raise ValueError("Duplicate qubit indices in subsystem.")
+    if set(list_a) & set(list_b):
+        raise ValueError("Subsystems a and b must be disjoint.")
+    for q in list_a + list_b:
+        if not 0 <= q < qubits:
+            raise ValueError(f"Qubit index {q} out of range for {qubits} qubits.")
+    return list_a, list_b
+
+
+def mutual_information(
+    rho: np.ndarray,
+    qubits: int,
+    a: int | list[int] | tuple[int, ...],
+    b: int | list[int] | tuple[int, ...],
+) -> float:
+    """Quantum mutual information ``I(A:B) = S(A) + S(B) - S(AB)`` in bits."""
+    list_a, list_b = _normalize_disjoint_subsystems(qubits, a, b)
+    rho_a = np.asarray(partial_trace(rho, qubits, keep=list_a), dtype=complex)
+    rho_b = np.asarray(partial_trace(rho, qubits, keep=list_b), dtype=complex)
+    rho_ab = np.asarray(partial_trace(rho, qubits, keep=list_a + list_b), dtype=complex)
+    val = von_neumann_entropy(rho_a) + von_neumann_entropy(rho_b) - von_neumann_entropy(rho_ab)
+    if abs(val) < 1e-14:
+        return 0.0
+    return float(val)
+
+
+def conditional_entropy(
+    rho: np.ndarray,
+    qubits: int,
+    a: int | list[int] | tuple[int, ...],
+    b: int | list[int] | tuple[int, ...],
+) -> float:
+    """Quantum conditional entropy ``S(A|B) = S(AB) - S(B)`` in bits."""
+    list_a, list_b = _normalize_disjoint_subsystems(qubits, a, b)
+    rho_b = np.asarray(partial_trace(rho, qubits, keep=list_b), dtype=complex)
+    rho_ab = np.asarray(partial_trace(rho, qubits, keep=list_a + list_b), dtype=complex)
+    val = von_neumann_entropy(rho_ab) - von_neumann_entropy(rho_b)
+    if abs(val) < 1e-14:
+        return 0.0
+    return float(val)
+
+
+
 
 
 
