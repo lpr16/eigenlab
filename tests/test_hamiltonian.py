@@ -530,6 +530,32 @@ def test_heisenberg_ring_four_sites_sublattice():
     assert np.allclose(spectrum(heisenberg_ring(4)), expected, atol=1e-12)
 
 
+def test_heisenberg_ring_ground_state_momentum():
+    # Phase 13: The momentum of the ground state
+    from eigenlab.hamiltonian import heisenberg_ring, total_spin, translation
+
+    for n, expected_sign in [(4, 1.0), (6, -1.0), (8, 1.0)]:
+        h_op = heisenberg_ring(n)
+        evals, evecs = eigensystem(h_op)
+
+        # Ground state is nondegenerate
+        assert evals[1] - evals[0] > 1e-6
+        gs = evecs[:, 0]
+
+        if n == 4:
+            assert np.isclose(evals[0], -8.0, atol=1e-12)
+
+        # <S^2> = 0
+        s2_op = total_spin(n)
+        assert np.isclose(s2_op.expectation(gs), 0.0, atol=1e-12)
+
+        # T eigenvalue is (-1)^{n/2}
+        t_mat = translation(n)
+        assert np.allclose(t_mat @ gs, expected_sign * gs, atol=1e-12)
+        assert np.isclose(np.vdot(gs, t_mat @ gs).real, expected_sign, atol=1e-12)
+
+
+
 
 
 
