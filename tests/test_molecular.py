@@ -646,6 +646,47 @@ def test_taper_h2_on_two_qubits():
         assert np.allclose(combined, spec4, atol=1e-10)
 
 
+def test_taper_heh_on_three_qubits():
+    # Phase 5: HeH+ on three qubits
+    from eigenlab.fermions import tag_sectors
+    from eigenlab.hamiltonian import eigensystem, spectrum, taper
+    from eigenlab.molecular import heh_sto3g_hamiltonian
+
+    h4 = heh_sto3g_hamiltonian(mapping="parity")
+    h3_even = taper(h4, [3], [+1])
+    h3_odd = taper(h4, [3], [-1])
+
+    assert h3_even.qubits == 3
+    assert h3_odd.qubits == 3
+
+    spec_even = spectrum(h3_even)
+    spec_odd = spectrum(h3_odd)
+
+    # Sign +1 (even N) has lowest energy -2.880712 to 1e-5 (HeH+ cation)
+    assert np.isclose(spec_even[0], -2.880712, atol=1e-5)
+
+    # Sign -1 (odd N) has lowest energy -2.922682 to 1e-5 (N = 3 neutral HeH radical)
+    assert np.isclose(spec_odd[0], -2.922682, atol=1e-5)
+
+    # Tag the 4-qubit eigenvectors to verify N=0 and N=4 lie higher than N=2 in the even sector
+    evals4, evecs4 = eigensystem(h4)
+    tags4 = tag_sectors(evecs4, n_spatial=2, mapping="parity")
+    even_evals_by_n: dict[int, list[float]] = {0: [], 2: [], 4: []}
+    for e, (n_el, _sz) in zip(evals4, tags4):
+        if n_el in even_evals_by_n:
+            even_evals_by_n[n_el].append(float(e))
+
+    assert len(even_evals_by_n[0]) == 1
+    assert len(even_evals_by_n[4]) == 1
+    assert np.isclose(min(even_evals_by_n[2]), spec_even[0], atol=1e-10)
+    assert min(even_evals_by_n[0]) > spec_even[0]
+    assert min(even_evals_by_n[4]) > spec_even[0]
+
+    # Union of even and odd 3-qubit spectra equals the 4-qubit spectrum
+    assert np.allclose(np.sort(np.concatenate([spec_even, spec_odd])), evals4, atol=1e-10)
+
+
+
 
 
 
