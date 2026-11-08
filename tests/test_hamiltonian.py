@@ -382,3 +382,34 @@ def test_two_site_ising_modes():
     spec_h0 = spectrum(transverse_ising(2, 1.0, 0.0))
     assert np.allclose(spec_h0[:2], [-1.0, -1.0], atol=1e-12)
 
+
+def test_critical_ising_chain():
+    # Phase 7: The critical chain
+    from eigenlab.hamiltonian import transverse_ising_bdg_matrix
+
+    scaled_gaps = []
+    for n in [2, 3, 4, 5, 6, 7, 8, 16, 32, 64]:
+        bdg = transverse_ising_bdg_matrix(n, coupling=1.0, field=1.0)
+        bdg_evals = np.sort(np.real(np.linalg.eigvalsh(bdg)))
+        nonneg = bdg_evals[n:]
+
+        m = np.arange(1, n + 1, dtype=float)
+        expected_eps = 4.0 * np.sin((2.0 * m - 1.0) * np.pi / (2.0 * (2.0 * n + 1.0)))
+        assert np.allclose(nonneg, expected_eps, atol=1e-12)
+
+        eps_1 = nonneg[0]
+        # Since sin(x) < x for x > 0: (2n + 1) * eps_1 < 2 * pi
+        scaled = (2 * n + 1) * eps_1
+        assert scaled < 2.0 * np.pi
+
+        if n <= 8:
+            mb_spec = spectrum(transverse_ising(n, coupling=1.0, field=1.0))
+            assert np.isclose(mb_spec[1] - mb_spec[0], eps_1, atol=1e-12)
+
+        if n in (8, 16, 32, 64):
+            scaled_gaps.append(scaled)
+
+    # Strictly increasing over n = 8, 16, 32, 64
+    assert all(scaled_gaps[i] < scaled_gaps[i + 1] for i in range(len(scaled_gaps) - 1))
+
+
