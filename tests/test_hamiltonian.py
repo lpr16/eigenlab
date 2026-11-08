@@ -349,3 +349,36 @@ def test_lanczos_full_krylov_space():
     assert t_mat.shape == (8, 8)
     assert np.isclose(t_mat[0, 0], expectation(h, start), atol=1e-12)
     assert np.allclose(values, exact, atol=1e-8)
+
+
+def test_two_site_ising_modes():
+    # Phase 6: Two-site modes
+    # For n = 2, H = -J Z_0 Z_1 - h (X_0 + X_1) has eigenvalues ±√(J² + 4h²) and ±J.
+    # In terms of Bogoliubov quasiparticle modes 0 <= ε_1 <= ε_2:
+    #   E(0, 0) = -(ε_1 + ε_2) / 2 = -√(J² + 4h²)
+    #   E(1, 0) =  (ε_1 - ε_2) / 2 = -J
+    # Adding and subtracting gives:
+    #   ε_1 = √(J² + 4h²) - J
+    #   ε_2 = √(J² + 4h²) + J
+    from eigenlab.hamiltonian import transverse_ising_bdg_matrix
+
+    for j_val, h_val in [(1.0, 0.5), (0.7, 1.3), (1.0, 1.0)]:
+        rad = np.sqrt(j_val**2 + 4.0 * h_val**2)
+        expected_mb = np.sort([-rad, -j_val, j_val, rad])
+        assert np.allclose(spectrum(transverse_ising(2, j_val, h_val)), expected_mb, atol=1e-12)
+
+        eps_1 = rad - j_val
+        eps_2 = rad + j_val
+        bdg = transverse_ising_bdg_matrix(2, j_val, h_val)
+        bdg_evals = np.sort(np.real(np.linalg.eigvalsh(bdg)))
+        nonneg = bdg_evals[2:]
+        assert np.allclose(nonneg, [eps_1, eps_2], atol=1e-12)
+
+    # At h = 0, ε_1 = 0 (a zero mode) and the ground state at -J is doubly degenerate
+    bdg_h0 = transverse_ising_bdg_matrix(2, 1.0, 0.0)
+    nonneg_h0 = np.sort(np.real(np.linalg.eigvalsh(bdg_h0)))[2:]
+    assert np.isclose(nonneg_h0[0], 0.0, atol=1e-12)
+    assert np.isclose(nonneg_h0[1], 2.0, atol=1e-12)
+    spec_h0 = spectrum(transverse_ising(2, 1.0, 0.0))
+    assert np.allclose(spec_h0[:2], [-1.0, -1.0], atol=1e-12)
+
