@@ -46,6 +46,18 @@ def amplitude_damping(rho: np.ndarray, p: float) -> np.ndarray:
     return apply_kraus(_one_qubit_rho(rho), amplitude_damping_kraus(p))
 
 
+def two_qubit_amplitude_damping(rho: np.ndarray, p: float) -> np.ndarray:
+    """Apply independent one-qubit amplitude damping with probability ``p`` to each of two qubits."""
+    mat = np.asarray(rho, dtype=complex)
+    if mat.ndim == 1:
+        mat = density(mat)
+    if mat.shape != (4, 4):
+        raise ValueError(f"Expected 2-qubit state (4x4), got shape {mat.shape}")
+    k1 = amplitude_damping_kraus(p)
+    kraus_2q = [np.kron(a, b) for a in k1 for b in k1]
+    return apply_kraus(mat, kraus_2q)
+
+
 def depolarize(rho: np.ndarray, p: float) -> np.ndarray:
     """One-qubit depolarizing channel (1−p) ρ + (p/3) (XρX + YρY + ZρZ), 0 ≤ p ≤ 1."""
     from eigenlab.pauli import X, Y, Z

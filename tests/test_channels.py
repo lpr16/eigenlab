@@ -273,5 +273,57 @@ def test_detailed_balance_gives_gibbs():
     assert np.allclose(rho_ss_2, gibbs(h_2, beta), atol=1e-10)
 
 
+def test_entanglement_sudden_death():
+    # Phase 34: Entanglement sudden death
+    from eigenlab.channels import lindblad_evolve, two_qubit_amplitude_damping
+    from eigenlab.pauli import I
+    from eigenlab.states import basis, concurrence
+
+    sigma_minus = np.array([[0.0, 1.0], [0.0, 0.0]], dtype=complex)
+    gamma = 0.8
+    zero_h2 = np.zeros((4, 4), dtype=complex)
+    jumps_2q = [
+        np.sqrt(gamma) * np.kron(sigma_minus, I),
+        np.sqrt(gamma) * np.kron(I, sigma_minus),
+    ]
+
+    cases = [
+        (1.0 / np.sqrt(2.0), 1.0 / np.sqrt(2.0)),
+        (np.sqrt(0.2), np.sqrt(0.8)),
+    ]
+
+    for alpha, beta in cases:
+        psi = alpha * basis(0b00, 2) + beta * basis(0b11, 2)
+        for p in (0.1, 0.3, 0.6):
+            rho_p = two_qubit_amplitude_damping(psi, p)
+
+            # Verify X-state matrix elements
+            assert np.isclose(rho_p[3, 3], (abs(beta) ** 2) * ((1.0 - p) ** 2), atol=1e-12)
+            assert np.isclose(rho_p[1, 1], (abs(beta) ** 2) * p * (1.0 - p), atol=1e-12)
+            assert np.isclose(rho_p[2, 2], (abs(beta) ** 2) * p * (1.0 - p), atol=1e-12)
+            assert np.isclose(rho_p[0, 3], alpha * np.conj(beta) * (1.0 - p), atol=1e-12)
+
+            expected_c = 2.0 * (1.0 - p) * max(0.0, abs(alpha * beta) - p * (abs(beta) ** 2))
+            if np.isclose(abs(alpha), abs(beta)):
+                assert np.isclose(expected_c, (1.0 - p) ** 2, atol=1e-12)
+                assert expected_c > 0.0
+            elif p >= 0.5:
+                assert expected_c == 0.0
+
+            assert np.isclose(concurrence(rho_p), expected_c, atol=1e-12)
+
+            # Match lindblad_evolve at the same p = 1 - exp(-gamma * t)
+            t = -np.log(1.0 - p) / gamma
+            rho_lind = lindblad_evolve(zero_h2, jumps_2q, psi, t)
+            assert np.allclose(rho_lind, rho_p, atol=1e-10)
+            assert np.isclose(concurrence(rho_lind), expected_c, atol=1e-10)
+
+    # Check exact sudden-death threshold p = 1/2 -> t = ln(2) / gamma for |alpha|^2 = 0.2, |beta|^2 = 0.8
+    psi_esd = np.sqrt(0.2) * basis(0b00, 2) + np.sqrt(0.8) * basis(0b11, 2)
+    rho_threshold = lindblad_evolve(zero_h2, jumps_2q, psi_esd, np.log(2.0) / gamma)
+    assert np.isclose(concurrence(rho_threshold), 0.0, atol=1e-12)
+
+
+
 
 
