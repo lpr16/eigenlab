@@ -149,7 +149,9 @@ def _ladder_operators(mapping: str):
         return jordan_wigner_a, jordan_wigner_adag
     if map_norm in ("bravyi_kitaev", "bk"):
         return bravyi_kitaev_a, bravyi_kitaev_adag
-    raise ValueError(f"Unknown mapping: {mapping}. Must be 'jordan_wigner' or 'bravyi_kitaev'")
+    if map_norm in ("parity", "p"):
+        return parity_a, parity_adag
+    raise ValueError(f"Unknown mapping: {mapping}. Must be 'jordan_wigner', 'bravyi_kitaev', or 'parity'")
 
 
 def number_operator(p: int, n: int, mapping: str = "jordan_wigner") -> Hamiltonian:
@@ -161,24 +163,29 @@ def number_operator(p: int, n: int, mapping: str = "jordan_wigner") -> Hamiltoni
         label_i = "I" * n
         label_z = "I" * p + "Z" + "I" * (n - 1 - p)
         return Hamiltonian([(0.5, label_i), (-0.5, label_z)])
-    elif map_norm in ("bravyi_kitaev", "bk"):
-        return (bravyi_kitaev_adag(p, n) @ bravyi_kitaev_a(p, n)).simplify()
+    elif map_norm in ("bravyi_kitaev", "bk", "parity", "p"):
+        a_fn, adag_fn = _ladder_operators(mapping)
+        return (adag_fn(p, n) @ a_fn(p, n)).simplify()
     else:
-        raise ValueError(f"Unknown mapping: {mapping}. Must be 'jordan_wigner' or 'bravyi_kitaev'")
+        raise ValueError(f"Unknown mapping: {mapping}. Must be 'jordan_wigner', 'bravyi_kitaev', or 'parity'")
 
 
 def total_number_operator(n: int, mapping: str = "jordan_wigner") -> Hamiltonian:
     """Total number operator N = ∑_{p=0}^{n-1} a†_p a_p."""
-    if mapping.lower() not in ("jordan_wigner", "jw"):
+    map_norm = mapping.lower()
+    if map_norm in ("jordan_wigner", "jw"):
+        terms: list[tuple[complex | float, str]] = [(0.5 * n, "I" * n)]
+        for p in range(n):
+            label_z = "I" * p + "Z" + "I" * (n - 1 - p)
+            terms.append((-0.5, label_z))
+        return Hamiltonian(terms)
+    elif map_norm in ("bravyi_kitaev", "bk", "parity", "p"):
         N = Hamiltonian([])
         for p in range(n):
             N = N + number_operator(p, n, mapping=mapping)
         return N.simplify()
-    terms: list[tuple[complex | float, str]] = [(0.5 * n, "I" * n)]
-    for p in range(n):
-        label_z = "I" * p + "Z" + "I" * (n - 1 - p)
-        terms.append((-0.5, label_z))
-    return Hamiltonian(terms)
+    else:
+        raise ValueError(f"Unknown mapping: {mapping}. Must be 'jordan_wigner', 'bravyi_kitaev', or 'parity'")
 
 
 def tight_binding_chain(
@@ -202,17 +209,18 @@ def tight_binding_chain(
             label_yy[i + 1] = "Y"
             terms.append((-0.5 * float(t), "".join(label_yy)))
         return Hamiltonian(terms)
-    elif map_norm in ("bravyi_kitaev", "bk"):
+    elif map_norm in ("bravyi_kitaev", "bk", "parity", "p"):
+        a_fn, adag_fn = _ladder_operators(mapping)
         H = Hamiltonian([])
         for i in range(n - 1):
             hop = (
-                bravyi_kitaev_adag(i, n) @ bravyi_kitaev_a(i + 1, n)
-                + bravyi_kitaev_adag(i + 1, n) @ bravyi_kitaev_a(i, n)
+                adag_fn(i, n) @ a_fn(i + 1, n)
+                + adag_fn(i + 1, n) @ a_fn(i, n)
             )
             H = H + (-float(t) * hop)
         return H.simplify()
     else:
-        raise ValueError(f"Unknown mapping: {mapping}. Must be 'jordan_wigner' or 'bravyi_kitaev'")
+        raise ValueError(f"Unknown mapping: {mapping}. Must be 'jordan_wigner', 'bravyi_kitaev', or 'parity'")
 
 
 def tight_binding_ring(
@@ -307,7 +315,21 @@ def total_spin_z(n_spatial: int, mapping: str = "jordan_wigner") -> Hamiltonian:
     Spin-orbitals are interleaved as: orbital 2*i is spin-up, 2*i + 1 is spin-down.
     """
     n_orbitals = 2 * n_spatial
-    if mapping.lower() not in ("jordan_wigner", "jw"):
+    map_norm = mapping.lower()
+    if map_norm in ("jordan_wigner", "jw"):
+        terms: list[tuple[complex | float, str]] = []
+        # n_p = (I - Z_p)/2
+        # S_z = (1/2) ∑ ( (I - Z_{2i})/2 - (I - Z_{2i+1})/2 ) = (1/4) ∑ (-Z_{2i} + Z_{2i+1})
+        for i in range(n_spatial):
+            lbl_up = ["I"] * n_orbitals
+            lbl_up[2 * i] = "Z"
+            terms.append((-0.25, "".join(lbl_up)))
+
+            lbl_dn = ["I"] * n_orbitals
+            lbl_dn[2 * i + 1] = "Z"
+            terms.append((0.25, "".join(lbl_dn)))
+        return Hamiltonian(terms)
+    elif map_norm in ("bravyi_kitaev", "bk", "parity", "p"):
         s_z = Hamiltonian([])
         for i in range(n_spatial):
             s_z = s_z + 0.5 * (
@@ -315,34 +337,25 @@ def total_spin_z(n_spatial: int, mapping: str = "jordan_wigner") -> Hamiltonian:
                 - number_operator(2 * i + 1, n_orbitals, mapping=mapping)
             )
         return s_z.simplify()
-    terms: list[tuple[complex | float, str]] = []
-    # n_p = (I - Z_p)/2
-    # S_z = (1/2) ∑ ( (I - Z_{2i})/2 - (I - Z_{2i+1})/2 ) = (1/4) ∑ (-Z_{2i} + Z_{2i+1})
-    for i in range(n_spatial):
-        lbl_up = ["I"] * n_orbitals
-        lbl_up[2 * i] = "Z"
-        terms.append((-0.25, "".join(lbl_up)))
-
-        lbl_dn = ["I"] * n_orbitals
-        lbl_dn[2 * i + 1] = "Z"
-        terms.append((0.25, "".join(lbl_dn)))
-    return Hamiltonian(terms)
+    else:
+        raise ValueError(f"Unknown mapping: {mapping}. Must be 'jordan_wigner', 'bravyi_kitaev', or 'parity'")
 
 
-def total_spin_squared(n_spatial: int) -> Hamiltonian:
+def total_spin_squared(n_spatial: int, mapping: str = "jordan_wigner") -> Hamiltonian:
     """Total spin operator S² = S_- S_+ + S_z² + S_z for interleaved fermions.
 
     S_+ = ∑_i a†_{2i} a_{2i+1}, S_- = S_+†, and S_z is total_spin_z.
     """
     if n_spatial < 1:
         raise ValueError("n_spatial must be at least 1")
+    a_fn, adag_fn = _ladder_operators(mapping)
     n_orbitals = 2 * n_spatial
     s_plus = Hamiltonian([])
     for i in range(n_spatial):
-        term = jordan_wigner_adag(2 * i, n_orbitals) @ jordan_wigner_a(2 * i + 1, n_orbitals)
+        term = adag_fn(2 * i, n_orbitals) @ a_fn(2 * i + 1, n_orbitals)
         s_plus = s_plus + term
     s_minus = s_plus.dagger()
-    s_z = total_spin_z(n_spatial)
+    s_z = total_spin_z(n_spatial, mapping=mapping)
 
     s2 = (s_minus @ s_plus) + (s_z @ s_z) + s_z
     return s2.simplify()

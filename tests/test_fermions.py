@@ -1097,4 +1097,84 @@ def test_parity_operators():
                 assert np.allclose(anticom_a, zero)
 
 
+def test_parity_mapping_everywhere():
+    # Phase 2: Parity wherever a mapping is accepted
+    import pytest
+
+    from eigenlab.fermions import (
+        hubbard_dimer,
+        parity_adag,
+        tight_binding_chain,
+        total_number_operator,
+        total_spin_squared,
+    )
+    from eigenlab.hamiltonian import spectrum
+    from eigenlab.molecular import h2_sto3g_hamiltonian, heh_sto3g_hamiltonian
+    from eigenlab.states import basis
+
+    # 1. tight_binding_chain at n = 3, 4, 5
+    for n in [3, 4, 5]:
+        h_jw = tight_binding_chain(n, t=1.25, mapping="jordan_wigner")
+        h_par = tight_binding_chain(n, t=1.25, mapping="parity")
+        h_p = tight_binding_chain(n, t=1.25, mapping="p")
+        evals_jw = spectrum(h_jw)
+        assert np.allclose(evals_jw, spectrum(h_par), atol=1e-8)
+        assert np.allclose(evals_jw, spectrum(h_p), atol=1e-8)
+
+    # 2. hubbard_dimer at the (t, U) pairs in test_hubbard_dimer
+    tu_pairs = [
+        (0.0, 3.5),
+        (0.5, 0.0),
+        (0.5, 1.0),
+        (0.5, 4.0),
+        (1.0, 0.0),
+        (1.0, 1.0),
+        (1.0, 4.0),
+        (2.5, 0.0),
+        (2.5, 1.0),
+        (2.5, 4.0),
+        (0.8, 0.0),
+        (1.5, 0.0),
+        (0.0, 1.2),
+        (0.0, 5.0),
+    ]
+    for t, u in tu_pairs:
+        h_jw = hubbard_dimer(t=t, U=u, mapping="jordan_wigner")
+        h_par = hubbard_dimer(t=t, U=u, mapping="parity")
+        assert np.allclose(spectrum(h_jw), spectrum(h_par), atol=1e-8)
+
+    # 3. H2 and HeH+ ground energies match Jordan-Wigner to 1e-8
+    h2_jw = h2_sto3g_hamiltonian(1.401, mapping="jordan_wigner")
+    h2_par = h2_sto3g_hamiltonian(1.401, mapping="parity")
+    assert np.isclose(spectrum(h2_jw)[0], spectrum(h2_par)[0], atol=1e-8)
+
+    heh_jw = heh_sto3g_hamiltonian(mapping="jordan_wigner")
+    heh_par = heh_sto3g_hamiltonian(mapping="parity")
+    assert np.isclose(spectrum(heh_jw)[0], spectrum(heh_par)[0], atol=1e-8)
+
+    # 4. a†_p applied to vacuum has <N> = 1 under total_number_operator(n, mapping="parity")
+    for n in range(1, 6):
+        vac = basis(0, n)
+        n_op = total_number_operator(n, mapping="parity")
+        for p in range(n):
+            ket = parity_adag(p, n).to_matrix() @ vac
+            assert np.isclose(n_op.expectation(ket), 1.0, atol=1e-12)
+
+    # 5. total_spin_squared accepts mapping="parity" and "p"
+    s2_jw = total_spin_squared(2, mapping="jordan_wigner")
+    s2_par = total_spin_squared(2, mapping="parity")
+    s2_p = total_spin_squared(2, mapping="p")
+    assert np.allclose(spectrum(s2_jw), spectrum(s2_par), atol=1e-12)
+    assert np.allclose(spectrum(s2_jw), spectrum(s2_p), atol=1e-12)
+
+    # 6. Unknown mapping still raises ValueError
+    with pytest.raises(ValueError):
+        tight_binding_chain(3, mapping="invalid_map")
+    with pytest.raises(ValueError):
+        total_spin_squared(2, mapping="invalid_map")
+    with pytest.raises(ValueError):
+        h2_sto3g_hamiltonian(1.401, mapping="invalid_map")
+
+
+
 

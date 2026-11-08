@@ -9,6 +9,8 @@ from eigenlab.fermions import (
     bravyi_kitaev_adag,
     jordan_wigner_a,
     jordan_wigner_adag,
+    parity_a,
+    parity_adag,
 )
 from eigenlab.hamiltonian import Hamiltonian, eigensystem, spectrum
 from eigenlab.integrals import (
@@ -63,8 +65,11 @@ def integral_hamiltonian(
     elif map_norm in ("bravyi_kitaev", "bk"):
         a_ops = [bravyi_kitaev_a(p, n) for p in range(n)]
         adag_ops = [bravyi_kitaev_adag(p, n) for p in range(n)]
+    elif map_norm in ("parity", "p"):
+        a_ops = [parity_a(p, n) for p in range(n)]
+        adag_ops = [parity_adag(p, n) for p in range(n)]
     else:
-        raise ValueError(f"Unknown mapping: {mapping}. Must be 'jordan_wigner' or 'bravyi_kitaev'")
+        raise ValueError(f"Unknown mapping: {mapping}. Must be 'jordan_wigner', 'bravyi_kitaev', or 'parity'")
 
     acc: dict[str, complex] = defaultdict(complex)
     if abs(nuclear_repulsion) > 1e-12:
