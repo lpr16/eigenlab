@@ -236,4 +236,42 @@ def test_driven_damped_qubit_steady_state():
         assert np.allclose(rho_long, rho_ss, atol=1e-8)
 
 
+def test_detailed_balance_gives_gibbs():
+    # Phase 33: Detailed balance gives Gibbs
+    from eigenlab.channels import lindblad_steady_state
+    from eigenlab.hamiltonian import Hamiltonian
+    from eigenlab.pauli import I, Z
+    from eigenlab.thermal import gibbs
+
+    sigma_minus = np.array([[0.0, 1.0], [0.0, 0.0]], dtype=complex)
+    sigma_plus = sigma_minus.conj().T
+
+    omega = 1.4
+    beta = 0.85
+    gamma = 0.6
+    n_bar = 1.0 / (np.exp(beta * omega) - 1.0)
+
+    # 1) Single qubit: H = -(omega/2) Z
+    h_1 = -0.5 * omega * Z
+    jumps_1 = [
+        np.sqrt(gamma * (n_bar + 1.0)) * sigma_minus,
+        np.sqrt(gamma * n_bar) * sigma_plus,
+    ]
+    rho_ss_1 = lindblad_steady_state(h_1, jumps_1)
+    assert np.isclose(np.real(rho_ss_1[1, 1] / rho_ss_1[0, 0]), np.exp(-beta * omega), atol=1e-10)
+    assert np.allclose(rho_ss_1, gibbs(h_1, beta), atol=1e-10)
+
+    # 2) Two qubits, each with its own bath, under H = -(omega/2)(ZI + IZ)
+    h_2 = Hamiltonian([(-0.5 * omega, "ZI"), (-0.5 * omega, "IZ")])
+    jumps_2 = [
+        np.sqrt(gamma * (n_bar + 1.0)) * np.kron(sigma_minus, I),
+        np.sqrt(gamma * n_bar) * np.kron(sigma_plus, I),
+        np.sqrt(gamma * (n_bar + 1.0)) * np.kron(I, sigma_minus),
+        np.sqrt(gamma * n_bar) * np.kron(I, sigma_plus),
+    ]
+    rho_ss_2 = lindblad_steady_state(h_2, jumps_2)
+    assert np.allclose(rho_ss_2, gibbs(h_2, beta), atol=1e-10)
+
+
+
 
