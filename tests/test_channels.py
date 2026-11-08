@@ -173,3 +173,40 @@ def test_lindbladian():
     assert np.isclose(np.trace(rho_t), 1.0, atol=1e-12)
     assert np.min(np.linalg.eigvalsh(rho_t)) >= -1e-12
 
+
+def test_lindblad_closed_forms_recovered():
+    # Phase 31: The closed forms, recovered
+    from eigenlab.channels import (
+        amplitude_damping,
+        amplitude_damping_evolve,
+        dephasing,
+        lindblad_evolve,
+        lindbladian,
+    )
+    from eigenlab.pauli import Z
+    from eigenlab.states import PLUS, PLUS_I
+
+    sigma_minus = np.array([[0.0, 1.0], [0.0, 0.0]], dtype=complex)
+    zero_h = np.zeros((2, 2), dtype=complex)
+    gamma = 0.65
+
+    # Jump sqrt(gamma) Z gives gamma * (Z rho Z - rho)
+    L_deph = lindbladian(zero_h, [np.sqrt(gamma) * Z])
+    rho_sample = _mixed_qubit()
+    drho = (L_deph @ rho_sample.reshape(-1)).reshape((2, 2))
+    assert np.allclose(drho, gamma * (Z @ rho_sample @ Z - rho_sample), atol=1e-12)
+
+    for state in (ONE, PLUS, PLUS_I):
+        rho = density(state)
+        for t in (0.0, 0.25, 0.8, 1.7):
+            # 1) Jump sqrt(gamma) sigma_- reproduces amplitude_damping_evolve and amplitude_damping
+            out_ad = lindblad_evolve(zero_h, [np.sqrt(gamma) * sigma_minus], rho, t)
+            p = 1.0 - np.exp(-gamma * t)
+            assert np.allclose(out_ad, amplitude_damping_evolve(rho, gamma, t), atol=1e-10)
+            assert np.allclose(out_ad, amplitude_damping(rho, p), atol=1e-10)
+
+            # 2) Jump sqrt(gamma) Z reproduces dephasing
+            out_deph = lindblad_evolve(zero_h, [np.sqrt(gamma) * Z], rho, t)
+            assert np.allclose(out_deph, dephasing(rho, gamma, t), atol=1e-10)
+
+
