@@ -12,7 +12,7 @@ from eigenlab.fermions import (
     parity_a,
     parity_adag,
 )
-from eigenlab.hamiltonian import Hamiltonian, eigensystem, spectrum
+from eigenlab.hamiltonian import Hamiltonian, eigensystem, spectrum, z_symmetry_qubits
 from eigenlab.integrals import (
     ao_integrals,
     contracted_nuclear_attraction,

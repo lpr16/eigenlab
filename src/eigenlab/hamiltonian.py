@@ -391,3 +391,19 @@ def lanczos(
     off = np.array(betas[: k - 1], dtype=float)
     tridiagonal = np.diag(np.array(alphas, dtype=float)) + np.diag(off, 1) + np.diag(off, -1)
     return np.linalg.eigvalsh(tridiagonal), tridiagonal
+
+
+def z_symmetry_qubits(
+    hamiltonian: Hamiltonian | Sequence[tuple[complex | float, str]],
+) -> list[int]:
+    """Return sorted qubit indices on which every nonzero term of `hamiltonian` acts as I or Z."""
+    ham = hamiltonian if isinstance(hamiltonian, Hamiltonian) else Hamiltonian(hamiltonian)
+    ham = ham.simplify()
+    if not ham.terms:
+        return []
+    n = ham.qubits
+    active_terms = [(c, l) for c, l in ham.terms if abs(c) > 1e-12]
+    if not active_terms:
+        return list(range(n))
+    return [q for q in range(n) if all(label[q] in ("I", "Z") for _, label in active_terms)]
+

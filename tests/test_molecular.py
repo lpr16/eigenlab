@@ -593,6 +593,33 @@ def test_h4_ground_state_sectors_spin_and_natural_occupations():
     assert frac_sq > frac_rect
 
 
+def test_z_symmetry_qubits():
+    # Phase 3: Qubits that only see Z
+    from eigenlab.hamiltonian import z_symmetry_qubits
+    from eigenlab.molecular import h2_sto3g_hamiltonian, heh_sto3g_hamiltonian
+    from eigenlab.pauli import pauli
+
+    # 1. Parity-mapped H2 at R = 1.401: [1, 3]
+    h2_par = h2_sto3g_hamiltonian(1.401, mapping="parity")
+    assert z_symmetry_qubits(h2_par) == [1, 3]
+    h2_par_mat = h2_par.to_matrix()
+    for q in [1, 3]:
+        zq = pauli("I" * q + "Z" + "I" * (3 - q))
+        assert np.allclose(h2_par_mat @ zq, zq @ h2_par_mat)
+
+    # 2. Jordan-Wigner H2: []
+    h2_jw = h2_sto3g_hamiltonian(1.401, mapping="jordan_wigner")
+    assert z_symmetry_qubits(h2_jw) == []
+
+    # 3. Parity-mapped HeH+: [3]
+    heh_par = heh_sto3g_hamiltonian(mapping="parity")
+    assert z_symmetry_qubits(heh_par) == [3]
+    heh_par_mat = heh_par.to_matrix()
+    z3 = pauli("IIIZ")
+    assert np.allclose(heh_par_mat @ z3, z3 @ heh_par_mat)
+
+
+
 
 
 
