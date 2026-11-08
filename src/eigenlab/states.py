@@ -523,4 +523,19 @@ def teleport_outcomes(
     return outcomes_rho
 
 
+def werner_state(p: float) -> np.ndarray:
+    """Return the two-qubit Werner state ``p |Phi+><Phi+| + (1 - p) I / 4``."""
+    return float(p) * density(bell("phi+")) + (1.0 - float(p)) * 0.25 * np.eye(4, dtype=complex)
+
+
+def teleport_average(psi: np.ndarray, resource: np.ndarray | None = None) -> np.ndarray:
+    """Return the outcome-averaged 1-qubit density matrix produced by teleportation."""
+    outcomes = teleport_outcomes(density(psi), resource=resource)
+    avg = np.zeros((2, 2), dtype=complex)
+    for prob, rho_corr in outcomes.values():
+        avg += prob * rho_corr
+    return avg
+
+
+
 

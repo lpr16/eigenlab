@@ -418,3 +418,37 @@ def test_teleportation():
             assert np.allclose(rho_corr, density(psi), atol=1e-12)
 
 
+def test_teleportation_through_werner_pair():
+    # Phase 19: Teleportation through a Werner pair
+    from eigenlab.channels import depolarize
+    from eigenlab.states import teleport_average, werner_state
+
+    psi = np.cos(0.3) * ZERO + np.exp(0.7j) * np.sin(0.3) * ONE
+    rho = density(psi)
+    i2 = np.eye(2, dtype=complex)
+
+    for p in (0.2, 0.5, 0.9):
+        rho_w = werner_state(p)
+        out = teleport_average(psi, resource=rho_w)
+        expected = p * rho + (1.0 - p) * 0.5 * i2
+        assert np.allclose(out, expected, atol=1e-12)
+        assert np.allclose(out, depolarize(rho, 0.75 * (1.0 - p)), atol=1e-12)
+        fid = float(np.real(np.vdot(psi, out @ psi)))
+        assert np.isclose(fid, 0.5 * (1.0 + p), atol=1e-12)
+
+    # Classical bound 2/3 beaten iff p > 1/3 iff concurrence(rho_W(p)) == max(0, (3p - 1)/2) > 0
+    for p in (0.3, 0.4):
+        rho_w = werner_state(p)
+        out = teleport_average(psi, resource=rho_w)
+        fid = float(np.real(np.vdot(psi, out @ psi)))
+        conc = concurrence(rho_w)
+        if p == 0.3:
+            assert fid < 2.0 / 3.0
+            assert np.isclose(conc, 0.0, atol=1e-12)
+        else:
+            assert fid > 2.0 / 3.0
+            assert np.isclose(conc, (3.0 * p - 1.0) / 2.0, atol=1e-12)
+            assert conc > 0.0
+
+
+
