@@ -206,3 +206,27 @@ def evolve_driven(
         ket = V @ (phases * (V.conj().T @ ket))
     return ket
 
+
+def expm(A: np.ndarray) -> np.ndarray:
+    """Matrix exponential ``exp(A)`` via scaling and squaring of a truncated Taylor series."""
+    mat = np.asarray(A, dtype=complex)
+    if mat.ndim != 2 or mat.shape[0] != mat.shape[1]:
+        raise ValueError(f"expm requires a square 2D matrix, got shape {mat.shape}")
+    n = mat.shape[0]
+    norm = float(np.linalg.norm(mat, ord=1))
+    s = max(0, int(np.ceil(np.log2(norm / 0.25)))) if norm > 0.25 else 0
+    scaled = mat / float(1 << s)
+
+    out = np.eye(n, dtype=complex)
+    term = np.eye(n, dtype=complex)
+    for k in range(1, 25):
+        term = (term @ scaled) / float(k)
+        out = out + term
+        if float(np.max(np.abs(term))) <= 1e-17:
+            break
+
+    for _ in range(s):
+        out = out @ out
+    return out
+
+

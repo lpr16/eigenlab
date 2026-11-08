@@ -7,6 +7,7 @@ from typing import Callable, Sequence
 import numpy as np
 
 from eigenlab.codes import bit_flip_channel
+from eigenlab.dynamics import expm
 from eigenlab.states import density
 
 

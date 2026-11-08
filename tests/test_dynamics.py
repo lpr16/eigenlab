@@ -388,4 +388,35 @@ def test_evolve_driven_second_order():
         assert 3.9 <= ratio <= 4.1
 
 
+def test_matrix_exponential_expm():
+    # Phase 29: Matrix exponential
+    from eigenlab.dynamics import expm
+    from eigenlab.pauli import I, X
+
+    rng = np.random.default_rng(42)
+
+    # 1) For a Hermitian A, matches the eigh exponential to 1e-12
+    raw_h = rng.normal(size=(6, 6)) + 1j * rng.normal(size=(6, 6))
+    A_herm = raw_h + raw_h.conj().T
+    evals, evecs = np.linalg.eigh(A_herm)
+    expected_herm = evecs @ np.diag(np.exp(evals)) @ evecs.conj().T
+    assert np.allclose(expm(A_herm), expected_herm, atol=1e-12)
+
+    # 2) expm([[0, t], [0, 0]]) = [[1, t], [0, 1]] exactly, for a matrix with no eigenbasis
+    for t in (0.0, 0.2, 1.5, -3.7):
+        nilp = np.array([[0.0, t], [0.0, 0.0]], dtype=complex)
+        expected_nilp = np.array([[1.0, t], [0.0, 1.0]], dtype=complex)
+        assert np.allclose(expm(nilp), expected_nilp, atol=1e-15)
+
+    # 3) expm(-i*theta*X/2) = cos(theta/2) I - i sin(theta/2) X
+    for theta in (0.0, 0.7, np.pi, 2.3):
+        expected_rx = np.cos(0.5 * theta) * I - 1j * np.sin(0.5 * theta) * X
+        assert np.allclose(expm(-0.5j * theta * X), expected_rx, atol=1e-12)
+
+    # 4) expm(A) @ expm(-A) = I for a fixed random A
+    A_rand = 0.4 * (rng.normal(size=(4, 4)) + 1j * rng.normal(size=(4, 4)))
+    assert np.allclose(expm(A_rand) @ expm(-A_rand), np.eye(4), atol=1e-12)
+
+
+
 
