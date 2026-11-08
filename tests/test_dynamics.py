@@ -294,3 +294,25 @@ def test_yoshida_fourth_order():
 
     slope = float(np.polyfit(np.log(dt_list), np.log(errors), 1)[0])
     assert np.isclose(slope, 5.0, atol=0.05)
+
+
+def test_midpoint_evolve_driven_constant():
+    # Phase 26: Midpoint evolution
+    from eigenlab.dynamics import evolve_driven
+    from eigenlab.hamiltonian import transverse_ising_terms
+    from eigenlab.pauli import X, Z
+    from eigenlab.states import ONE
+
+    # Constant matrix H
+    h_mat = -0.5 * Z + 0.3 * X
+    psi_1 = np.cos(0.4) * ZERO + np.exp(0.6j) * np.sin(0.4) * ONE
+    for steps in (1, 10, 50):
+        out = evolve_driven(lambda _t: h_mat, psi_1, time=2.3, steps=steps)
+        assert np.allclose(out, evolve(h_mat, psi_1, 2.3), atol=1e-12)
+
+    # Constant Hamiltonian object
+    h_ising = transverse_ising_terms(3, coupling=0.9, field=1.1)
+    psi_3 = np.kron(np.kron(PLUS, ZERO), ONE)
+    out_3 = evolve_driven(lambda _t: h_ising, psi_3, time=1.7, steps=25)
+    assert np.allclose(out_3, evolve(h_ising, psi_3, 1.7), atol=1e-12)
+

@@ -182,3 +182,27 @@ def yoshida_unitary(
     outer = strang_unitary(H, theta * float(dt))
     middle = strang_unitary(H, (1.0 - 2.0 * theta) * float(dt))
     return outer @ middle @ outer
+
+
+def evolve_driven(
+    hamiltonian_at,
+    state: np.ndarray,
+    time: float,
+    steps: int,
+) -> np.ndarray:
+    """Midpoint time-dependent evolution over ``steps`` intervals of length ``dt = time / steps``.
+
+    Each step ``k`` applies ``exp(-i H(t_k + dt/2) dt)`` built with ``eigensystem``.
+    """
+    if int(steps) < 1:
+        raise ValueError(f"steps must be >= 1, got {steps}")
+    n_steps = int(steps)
+    dt = float(time) / float(n_steps)
+    ket = np.asarray(state, dtype=complex).reshape(-1).copy()
+    for k in range(n_steps):
+        t_mid = (k + 0.5) * dt
+        energies, V = eigensystem(hamiltonian_at(t_mid))
+        phases = np.exp(-1j * energies * dt)
+        ket = V @ (phases * (V.conj().T @ ket))
+    return ket
+
