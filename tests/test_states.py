@@ -451,4 +451,41 @@ def test_teleportation_through_werner_pair():
             assert conc > 0.0
 
 
+def test_superdense_coding():
+    # Phase 20: Superdense coding
+    from eigenlab.pauli import I, X, Z
+    from eigenlab.states import superdense_decode, superdense_encode
+
+    expected_bells = {
+        (0, 0): bell("phi+"),
+        (0, 1): bell("psi+"),
+        (1, 0): bell("phi-"),
+        (1, 1): bell("psi-"),
+    }
+    encoded_states = []
+    for (b0, b1), ref_bell in expected_bells.items():
+        enc = superdense_encode(b0, b1)
+        assert np.allclose(enc, ref_bell, atol=1e-12)
+        encoded_states.append(enc)
+
+        dec = superdense_decode(enc)
+        idx = (b0 << 1) | b1
+        probs = probabilities(dec)
+        assert np.isclose(probs[idx], 1.0, atol=1e-12)
+        assert np.allclose(density(dec), density(basis(idx, 2)), atol=1e-12)
+
+        # In circuit order (Z^{b0} then X^{b1}, i.e. operator X^{b1} Z^{b0}), (1, 1) produces -|11>
+        op_circuit = (X if b1 else I) @ (Z if b0 else I)
+        dec_circuit = superdense_decode(np.kron(op_circuit, I) @ bell("phi+"))
+        expected_ket = -basis(0b11, 2) if (b0, b1) == (1, 1) else basis(idx, 2)
+        assert np.allclose(dec_circuit, expected_ket, atol=1e-12)
+
+    # The four encoded Bell states are mutually orthogonal
+    for i in range(4):
+        for j in range(4):
+            expected_ov = 1.0 if i == j else 0.0
+            assert np.isclose(abs(np.vdot(encoded_states[i], encoded_states[j])), expected_ov, atol=1e-12)
+
+
+
 

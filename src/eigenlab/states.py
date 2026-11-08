@@ -537,5 +537,28 @@ def teleport_average(psi: np.ndarray, resource: np.ndarray | None = None) -> np.
     return avg
 
 
+def superdense_encode(b0: int, b1: int) -> np.ndarray:
+    """Apply ``Z^{b0} X^{b1}`` to qubit 0 of ``|Phi+>``."""
+    from eigenlab.pauli import I, X, Z
+
+    if b0 not in (0, 1) or b1 not in (0, 1):
+        raise ValueError("b0 and b1 must be in {0, 1}")
+    op_0 = (Z if b0 else I) @ (X if b1 else I)
+    return np.kron(op_0, I) @ bell("phi+")
+
+
+def superdense_decode(state: np.ndarray) -> np.ndarray:
+    """Apply ``CNOT(0->1)`` followed by ``H`` on qubit 0 to decode a 2-qubit superdense state."""
+    from eigenlab.pauli import I
+
+    h_1q = np.array([[1.0, 1.0], [1.0, -1.0]], dtype=complex) / np.sqrt(2.0)
+    cnot_01 = np.array(
+        [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 0, 1], [0, 0, 1, 0]],
+        dtype=complex,
+    )
+    return np.kron(h_1q, I) @ (cnot_01 @ np.asarray(state, dtype=complex))
+
+
+
 
 
