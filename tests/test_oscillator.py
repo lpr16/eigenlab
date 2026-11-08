@@ -100,3 +100,49 @@ def test_jaynes_cummings():
     assert np.allclose(spectrum(H), expected_sorted, atol=1e-12)
 
 
+def test_vacuum_rabi_oscillation():
+    # Phase 38: Vacuum Rabi oscillation
+    from eigenlab.dynamics import evolve
+    from eigenlab.states import ONE
+
+    d = 24
+    omega_c = 1.0
+    g = 0.08
+
+    # 1) From |0>|1>, P_e(t) = 1 - (4g^2 / (delta^2 + 4g^2)) sin^2(sqrt(delta^2 + 4g^2) t / 2),
+    # which is cos^2(g t) on resonance (delta = 0).
+    psi_01 = np.kron(fock(0, d), ONE)
+    for delta in (0.0, 0.12):
+        omega_q = omega_c + delta
+        H = jaynes_cummings(d, omega_c=omega_c, omega_q=omega_q, g=g)
+        omega_rabi = np.sqrt(delta**2 + 4.0 * (g**2))
+        for t in (0.0, 3.5, 11.2, 25.0):
+            psi_t = evolve(H, psi_01, t)
+            p_e = float(np.sum(np.abs(psi_t[1::2]) ** 2))
+            expected_pe = 1.0 - (4.0 * (g**2) / (delta**2 + 4.0 * (g**2))) * (
+                np.sin(0.5 * omega_rabi * t) ** 2
+            )
+            if delta == 0.0:
+                assert np.isclose(expected_pe, np.cos(g * t) ** 2, atol=1e-15)
+            assert np.isclose(p_e, expected_pe, atol=1e-10)
+
+    # 2) From a coherent field times |1>, on resonance, P_e(t) = sum_n p_n cos^2(g sqrt(n+1) t),
+    # with the field supported on n <= d - 2 so that every block it touches is complete.
+    H_res = jaynes_cummings(d, omega_c=omega_c, omega_q=omega_c, g=g)
+    field = coherent(1.5, d)
+    field[-1] = 0.0
+    field = field / np.linalg.norm(field)
+    p_n = np.abs(field) ** 2
+    assert p_n[-1] == 0.0
+    assert np.isclose(np.sum(p_n), 1.0, atol=1e-12)
+
+    psi_coh = np.kron(field, ONE)
+    n_idx = np.arange(d, dtype=float)
+    for t in (0.0, 2.0, 9.5, 22.0, 45.0):
+        psi_t = evolve(H_res, psi_coh, t)
+        p_e = float(np.sum(np.abs(psi_t[1::2]) ** 2))
+        expected_pe = float(np.sum(p_n * (np.cos(g * np.sqrt(n_idx + 1.0) * t) ** 2)))
+        assert np.isclose(p_e, expected_pe, atol=1e-10)
+
+
+
