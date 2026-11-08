@@ -712,6 +712,8 @@ def qfi(state: np.ndarray, generator) -> float:
     """Quantum Fisher information of ``state`` with respect to Hermitian ``generator``.
 
     For a pure state ket ``|psi>``, returns ``4 * Var(G) = 4 * (<G^2> - <G>^2)``.
+    For a density matrix ``rho``, returns
+    ``2 * sum_{lambda_i + lambda_j > 0} (lambda_i - lambda_j)^2 / (lambda_i + lambda_j) |<i|G|j>|^2``.
     """
     arr = np.asarray(state, dtype=complex)
     if arr.ndim == 1 or (arr.ndim == 2 and (arr.shape[0] == 1 or arr.shape[1] == 1)):
@@ -728,7 +730,29 @@ def qfi(state: np.ndarray, generator) -> float:
         if val < 1e-14:
             return 0.0
         return float(val)
-    raise ValueError("Expected ket state")
+
+    if arr.ndim == 2 and arr.shape[0] == arr.shape[1]:
+        tr = np.trace(arr)
+        if abs(tr) == 0:
+            raise ValueError("density matrix has zero trace")
+        rho = arr / tr
+        dim = rho.shape[0]
+        g_mat = _generator_matrix(generator, dim)
+        evals, evecs = np.linalg.eigh(rho)
+        lam = np.maximum(0.0, np.real(evals))
+        g_eig = evecs.conj().T @ g_mat @ evecs
+        denom = lam[:, None] + lam[None, :]
+        num = (lam[:, None] - lam[None, :]) ** 2
+        mask = denom > 1e-15
+        ratio = np.zeros_like(denom)
+        ratio[mask] = num[mask] / denom[mask]
+        val = float(2.0 * np.sum(ratio * (np.abs(g_eig) ** 2)))
+        if val < 1e-14:
+            return 0.0
+        return val
+
+    raise ValueError("Expected ket or square density matrix")
+
 
 
 

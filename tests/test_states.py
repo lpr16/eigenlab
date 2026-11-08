@@ -615,6 +615,77 @@ def test_qfi_pure_state():
         assert np.isclose(qfi(g_n, gen), float(n * n), atol=1e-12)
 
 
+def test_qfi_mixed_state():
+    # Phase 25: Quantum Fisher information of a mixed state
+    from eigenlab.channels import apply_kraus, dephasing
+    from eigenlab.codes import phase_flip_channel
+    from eigenlab.hamiltonian import Hamiltonian
+    from eigenlab.pauli import I, X, Y, Z
+    from eigenlab.states import qfi
+
+    # 1) On a pure state, density-matrix QFI equals 4 Var(G) to 1e-10
+    psi_2 = 0.6 * basis(0, 2) + 0.5j * basis(1, 2) - np.sqrt(1.0 - 0.36 - 0.25) * basis(3, 2)
+    gen_2 = Hamiltonian([(0.5, "ZI"), (0.5, "IZ")])
+    assert np.isclose(qfi(density(psi_2), gen_2), qfi(psi_2, gen_2), atol=1e-10)
+
+    # 2) On one qubit with Bloch vector r and G = Z / 2, F = r_x^2 + r_y^2.
+    # Algebra: rho = (I + r . sigma) / 2 has eigenvalues (1 +- |r|) / 2 and eigenstates |+-r>.
+    # Only the off-diagonal pair (i != j) contributes:
+    #   2 * 2 * ((lambda_+ - lambda_-)^2 / (lambda_+ + lambda_-)) * |<+r| Z/2 |-r>|^2
+    # = 4 * |r|^2 * (1/4) * |<+r| Z |-r>|^2 = |r|^2 * (1 - (r_z / |r|)^2) = r_x^2 + r_y^2.
+    for r_vec in [
+        np.array([0.3, -0.4, 0.5]),
+        np.array([0.7, 0.2, -0.3]),
+        np.array([0.0, 0.0, 0.8]),
+    ]:
+        rho_1 = 0.5 * (I + r_vec[0] * X + r_vec[1] * Y + r_vec[2] * Z)
+        r_norm = float(np.linalg.norm(r_vec))
+        # Explicit Bloch algebra check
+        alg_f = (r_norm**2) * (1.0 - (r_vec[2] / r_norm) ** 2)
+        assert np.isclose(alg_f, r_vec[0] ** 2 + r_vec[1] ** 2, atol=1e-12)
+        assert np.isclose(qfi(rho_1, 0.5 * Z), r_vec[0] ** 2 + r_vec[1] ** 2, atol=1e-12)
+
+    # 3) Dephase every qubit with Kraus pair sqrt((1+lam)/2) I and sqrt((1-lam)/2) Z.
+    # On one qubit this reproduces dephasing with lam = exp(-2 * gamma * t).
+    gamma, t = 0.35, 1.2
+    lam_1q = float(np.exp(-2.0 * gamma * t))
+    k0 = np.sqrt(0.5 * (1.0 + lam_1q)) * I
+    k1 = np.sqrt(0.5 * (1.0 - lam_1q)) * Z
+    rho_test = density(np.cos(0.4) * ZERO + np.exp(0.5j) * np.sin(0.4) * ONE)
+    assert np.allclose(apply_kraus(rho_test, [k0, k1]), dephasing(rho_test, gamma, t), atol=1e-12)
+    assert np.allclose(phase_flip_channel(rho_test, 0.5 * (1.0 - lam_1q)), dephasing(rho_test, gamma, t), atol=1e-12)
+
+    # Product |+>^{⊗n}: F = n * lam^2; ghz(n): F = n^2 * lam^{2n}
+    for n in [2, 3, 4]:
+        gen_n = Hamiltonian([(0.5, "I" * i + "Z" + "I" * (n - 1 - i)) for i in range(n)])
+        dim = 1 << n
+        plus_n = np.ones(dim, dtype=complex) / np.sqrt(float(dim))
+        g_n = ghz(n)
+        for lam in [0.95, 0.6]:
+            p_flip = 0.5 * (1.0 - lam)
+            rho_prod = phase_flip_channel(plus_n, p_flip)
+            rho_ghz = phase_flip_channel(g_n, p_flip)
+
+            # GHZ stays in span of |0...0> and |1...1> with coherence shrunk by lam^n
+            assert np.isclose(rho_ghz[0, 0], 0.5, atol=1e-12)
+            assert np.isclose(rho_ghz[-1, -1], 0.5, atol=1e-12)
+            assert np.isclose(rho_ghz[0, -1], 0.5 * (lam**n), atol=1e-12)
+
+            f_prod = qfi(rho_prod, gen_n)
+            f_ghz = qfi(rho_ghz, gen_n)
+            assert np.isclose(f_prod, n * (lam**2), atol=1e-10)
+            assert np.isclose(f_ghz, (n**2) * (lam ** (2 * n)), atol=1e-10)
+
+            # GHZ beats the product state iff n * lam^{2n - 2} > 1
+            beats = (n * (lam ** (2 * n - 2))) > 1.0
+            assert (f_ghz > f_prod) == beats
+            if n == 4 and lam == 0.95:
+                assert f_ghz > f_prod
+            if n == 4 and lam == 0.6:
+                assert f_ghz < f_prod
+
+
+
 
 
 
