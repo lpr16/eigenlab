@@ -458,3 +458,16 @@ def taper(
     return Hamiltonian(new_terms).simplify()
 
 
+def translation(n: int) -> np.ndarray:
+    """Lattice translation permutation matrix T |x_0 x_1 ... x_{n-1}⟩ = |x_{n-1} x_0 ... x_{n-2}⟩."""
+    if not 1 <= n <= 8:
+        raise ValueError("n must be between 1 and 8")
+    dim = 1 << n
+    t_mat = np.zeros((dim, dim), dtype=complex)
+    for x in range(dim):
+        y = ((x & 1) << (n - 1)) | (x >> 1)
+        t_mat[y, x] = 1.0
+    return t_mat
+
+
+

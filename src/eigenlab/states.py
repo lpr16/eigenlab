@@ -451,3 +451,11 @@ def von_neumann_entropy(rho: np.ndarray) -> float:
 
     return _vne(rho)
 
+
+def translation(n: int) -> np.ndarray:
+    """Lattice translation permutation matrix T |x_0 x_1 ... x_{n-1}⟩ = |x_{n-1} x_0 ... x_{n-2}⟩."""
+    from eigenlab.hamiltonian import translation as _translation
+
+    return _translation(n)
+
+

@@ -413,3 +413,29 @@ def test_critical_ising_chain():
     assert all(scaled_gaps[i] < scaled_gaps[i + 1] for i in range(len(scaled_gaps) - 1))
 
 
+def test_translation_operator():
+    # Phase 8: The translation operator
+    from eigenlab.hamiltonian import translation
+    from eigenlab.pauli import pauli
+
+    # On three qubits, T basis(4, 3) = basis(2, 3): |100⟩ -> |010⟩
+    t3 = translation(3)
+    assert np.allclose(t3 @ basis(4, 3), basis(2, 3), atol=1e-12)
+
+    for n in [3, 4, 5]:
+        dim = 1 << n
+        ident = np.eye(dim, dtype=complex)
+        t_mat = translation(n)
+
+        # T is unitary and T^n = I
+        assert np.allclose(t_mat @ t_mat.conj().T, ident, atol=1e-12)
+        assert np.allclose(np.linalg.matrix_power(t_mat, n), ident, atol=1e-12)
+
+        # T Z_i T† = Z_{i+1 mod n} for every i
+        for i in range(n):
+            zi = pauli("I" * i + "Z" + "I" * (n - 1 - i))
+            z_next = pauli("I" * ((i + 1) % n) + "Z" + "I" * (n - 1 - ((i + 1) % n)))
+            assert np.allclose(t_mat @ zi @ t_mat.conj().T, z_next, atol=1e-12)
+
+
+
