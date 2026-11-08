@@ -56,10 +56,45 @@ def coherent(alpha: complex | float, d: int) -> np.ndarray:
     )
 
 
+def jaynes_cummings(
+    d: int,
+    omega_c: float = 1.0,
+    omega_q: float = 1.0,
+    g: float = 0.1,
+) -> np.ndarray:
+    """Return the ``2d x 2d`` Jaynes-Cummings Hamiltonian ``H = omega_c a^dag a ⊗ I - (omega_q/2) I ⊗ Z + g (a^dag ⊗ sigma_- + a ⊗ sigma_+)``."""
+    from eigenlab.pauli import I, Z
+
+    dim = _validate_dim(d, max_dim=128)
+    a = annihilation(dim)
+    a_dag = a.conj().T
+    num = number(dim)
+    i_osc = np.eye(dim, dtype=complex)
+    sigma_minus = np.array([[0.0, 1.0], [0.0, 0.0]], dtype=complex)
+    sigma_plus = sigma_minus.conj().T
+
+    return (
+        float(omega_c) * np.kron(num, I)
+        - 0.5 * float(omega_q) * np.kron(i_osc, Z)
+        + float(g) * (np.kron(a_dag, sigma_minus) + np.kron(a, sigma_plus))
+    )
+
+
+def excitation_number(d: int) -> np.ndarray:
+    """Return the total excitation operator ``a^dag a ⊗ I + I ⊗ |1><1|``."""
+    from eigenlab.pauli import I
+
+    dim = _validate_dim(d, max_dim=128)
+    proj_1 = np.array([[0.0, 0.0], [0.0, 1.0]], dtype=complex)
+    return np.kron(number(dim), I) + np.kron(np.eye(dim, dtype=complex), proj_1)
+
+
 __all__ = [
     "annihilation",
     "coherent",
     "creation",
+    "excitation_number",
     "fock",
+    "jaynes_cummings",
     "number",
 ]
