@@ -360,3 +360,32 @@ def test_rotating_drive_exact():
     assert expected_counter <= bound_counter
 
 
+def test_evolve_driven_second_order():
+    # Phase 28: Second order
+    from eigenlab.dynamics import evolve_driven
+    from eigenlab.pauli import X, Y, Z
+
+    omega0 = 1.0
+    rabi = 0.4
+    omega = 1.2
+    t_final = 10.0
+    delta = omega - omega0
+    gen_rabi = np.sqrt(rabi**2 + delta**2)
+    p1_exact = float((rabi**2 / (rabi**2 + delta**2)) * (np.sin(0.5 * gen_rabi * t_final) ** 2))
+
+    def h_at(t: float) -> np.ndarray:
+        return -0.5 * omega0 * Z + 0.5 * rabi * (np.cos(omega * t) * X - np.sin(omega * t) * Y)
+
+    step_counts = [100, 200, 400, 800]
+    errors: list[float] = []
+    for steps in step_counts:
+        ket = evolve_driven(h_at, ZERO, time=t_final, steps=steps)
+        p1 = float(abs(ket[1]) ** 2)
+        errors.append(abs(p1 - p1_exact))
+
+    for i in range(len(step_counts) - 1):
+        ratio = errors[i] / errors[i + 1]
+        assert 3.9 <= ratio <= 4.1
+
+
+
