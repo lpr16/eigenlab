@@ -438,4 +438,30 @@ def test_translation_operator():
             assert np.allclose(t_mat @ zi @ t_mat.conj().T, z_next, atol=1e-12)
 
 
+def test_heisenberg_ring():
+    # Phase 9: Heisenberg ring
+    import pytest
+
+    from eigenlab.hamiltonian import heisenberg_ring, total_spin, translation
+
+    # Reject n = 2
+    with pytest.raises(ValueError):
+        heisenberg_ring(2)
+
+    for n in [4, 5, 6, 7, 8]:
+        h_op = heisenberg_ring(n)
+        h_mat = h_op.to_matrix()
+        t_mat = translation(n)
+        s2_mat = total_spin(n).to_matrix()
+        sum_z = Hamiltonian([(1.0, "I" * i + "Z" + "I" * (n - 1 - i)) for i in range(n)]).to_matrix()
+
+        assert np.allclose(h_mat @ t_mat - t_mat @ h_mat, 0.0, atol=1e-12)
+        assert np.allclose(h_mat @ s2_mat - s2_mat @ h_mat, 0.0, atol=1e-12)
+        assert np.allclose(h_mat @ sum_z - sum_z @ h_mat, 0.0, atol=1e-12)
+
+        # basis(0, n) has energy n
+        assert np.isclose(h_op.expectation(basis(0, n)), float(n), atol=1e-12)
+
+
+
 

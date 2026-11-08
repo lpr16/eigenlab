@@ -45,7 +45,9 @@ class Hamiltonian:
     def __rmul__(self, scalar: complex | float) -> Hamiltonian:
         return Hamiltonian([(c * complex(scalar), l) for c, l in self.terms])
 
-    def __matmul__(self, other: Hamiltonian) -> Hamiltonian:
+    def __matmul__(self, other: Hamiltonian | np.ndarray) -> Hamiltonian | np.ndarray:
+        if isinstance(other, np.ndarray):
+            return self.to_matrix() @ other
         from collections import defaultdict
         from eigenlab.pauli import apply_pauli, pauli_mult
 
@@ -468,6 +470,25 @@ def translation(n: int) -> np.ndarray:
         y = ((x & 1) << (n - 1)) | (x >> 1)
         t_mat[y, x] = 1.0
     return t_mat
+
+
+def heisenberg_ring(qubits: int, coupling: float = 1.0) -> Hamiltonian:
+    """Heisenberg ring H = J ∑_{i=0}^{n-1} (X_i X_{i+1} + Y_i Y_{i+1} + Z_i Z_{i+1}) with indices mod n."""
+    if qubits < 3:
+        raise ValueError("heisenberg_ring requires at least 3 qubits")
+    terms: list[tuple[complex | float, str]] = []
+    for i in range(qubits):
+        j = (i + 1) % qubits
+        for op in ("X", "Y", "Z"):
+            lbl = ["I"] * qubits
+            lbl[i] = op
+            lbl[j] = op
+            terms.append((float(coupling), "".join(lbl)))
+    return Hamiltonian(terms)
+
+
+heisenberg_ring_terms = heisenberg_ring
+
 
 
 
