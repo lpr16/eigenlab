@@ -316,3 +316,47 @@ def test_midpoint_evolve_driven_constant():
     out_3 = evolve_driven(lambda _t: h_ising, psi_3, time=1.7, steps=25)
     assert np.allclose(out_3, evolve(h_ising, psi_3, 1.7), atol=1e-12)
 
+
+def test_rotating_drive_exact():
+    # Phase 27: A rotating drive, solved exactly
+    from eigenlab.dynamics import evolve_driven
+    from eigenlab.pauli import X, Y, Z
+
+    omega0 = 1.0
+    rabi = 0.2
+    t_final = 7.0
+    steps = 1000
+
+    def exact_p1(delta: float, t: float) -> float:
+        gen_rabi = np.sqrt(rabi**2 + delta**2)
+        return float((rabi**2 / (rabi**2 + delta**2)) * (np.sin(0.5 * gen_rabi * t) ** 2))
+
+    # Co-rotating drive: H(t) = -(omega0/2) Z + (Omega/2) (cos(omega*t) X - sin(omega*t) Y)
+    for delta in (0.0, 0.1):
+        omega = omega0 + delta
+        ket = evolve_driven(
+            lambda t, w=omega: -0.5 * omega0 * Z + 0.5 * rabi * (np.cos(w * t) * X - np.sin(w * t) * Y),
+            ZERO,
+            time=t_final,
+            steps=steps,
+        )
+        p1 = float(abs(ket[1]) ** 2)
+        assert np.isclose(p1, exact_p1(delta, t_final), atol=1e-6)
+
+    # Counter-rotating drive: H(t) = -(omega0/2) Z + (Omega/2) (cos(omega*t) X + sin(omega*t) Y)
+    # Detuning is omega + omega0; at omega = omega0, P1 never exceeds Omega^2 / (Omega^2 + 4*omega0^2)
+    omega = omega0
+    ket_counter = evolve_driven(
+        lambda t: -0.5 * omega0 * Z + 0.5 * rabi * (np.cos(omega * t) * X + np.sin(omega * t) * Y),
+        ZERO,
+        time=t_final,
+        steps=steps,
+    )
+    p1_counter = float(abs(ket_counter[1]) ** 2)
+    expected_counter = exact_p1(omega + omega0, t_final)
+    bound_counter = (rabi**2) / (rabi**2 + 4.0 * (omega0**2))
+    assert np.isclose(p1_counter, expected_counter, atol=1e-6)
+    assert p1_counter <= bound_counter + 1e-12
+    assert expected_counter <= bound_counter
+
+
