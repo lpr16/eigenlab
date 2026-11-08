@@ -337,6 +337,22 @@ def test_toric_code_spectrum_by_counting_syndromes():
     assert np.allclose(vals, expected, atol=1e-12)
 
 
+def test_toric_code_ground_space_is_code_space():
+    # Phase 16: The ground space is the code space
+    stars, plaquettes = toric_code_stabilizers()
+    six_gens = stars[:3] + plaquettes[:3]
+    proj_code = code_projector(six_gens)
+
+    vals, vecs = eigensystem(toric_code_hamiltonian())
+    assert np.allclose(vals[:4], -8.0, atol=1e-12)
+    assert vals[4] > -4.5
+    gs_vecs = vecs[:, :4]
+    proj_gs = gs_vecs @ gs_vecs.conj().T
+
+    assert np.allclose(proj_code, proj_gs, atol=1e-10)
+
+
+
 
 
 
