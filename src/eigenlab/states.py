@@ -655,6 +655,46 @@ def conditional_entropy(
     return float(val)
 
 
+def holevo(probs: list[float] | tuple[float, ...] | np.ndarray, states: list[np.ndarray] | tuple[np.ndarray, ...]) -> float:
+    """Holevo quantity ``chi = S(sum_i p_i rho_i) - sum_i p_i S(rho_i)`` in bits."""
+    p_arr = np.asarray(probs, dtype=float).reshape(-1)
+    state_list = list(states)
+    if p_arr.size == 0 or p_arr.size != len(state_list):
+        raise ValueError("probs and states must be non-empty and have the same length.")
+    if np.any(p_arr < -1e-14) or not np.isclose(np.sum(p_arr), 1.0, atol=1e-12):
+        raise ValueError("probs must be non-negative and sum to 1.")
+    p_arr = np.maximum(0.0, p_arr)
+    p_arr = p_arr / np.sum(p_arr)
+
+    rhos: list[np.ndarray] = []
+    for st in state_list:
+        arr = np.asarray(st, dtype=complex)
+        if arr.ndim == 1:
+            arr = density(arr)
+        elif arr.ndim == 2 and arr.shape[0] == arr.shape[1]:
+            arr = arr / np.trace(arr)
+        else:
+            raise ValueError("Each state must be a ket or a square density matrix.")
+        rhos.append(arr)
+
+    dim = rhos[0].shape[0]
+    if any(r.shape != (dim, dim) for r in rhos):
+        raise ValueError("All states must have the same dimension.")
+
+    avg_rho = np.zeros((dim, dim), dtype=complex)
+    avg_ent = 0.0
+    for p_i, rho_i in zip(p_arr, rhos):
+        if p_i > 0.0:
+            avg_rho += p_i * rho_i
+            avg_ent += float(p_i) * von_neumann_entropy(rho_i)
+
+    chi = von_neumann_entropy(avg_rho) - avg_ent
+    if abs(chi) < 1e-14:
+        return 0.0
+    return float(chi)
+
+
+
 
 
 

@@ -555,6 +555,46 @@ def test_mutual_information_and_conditional_entropy():
     assert np.isclose(mutual_information(w3, 3, [0], [1]), binary_entropy(1.0 / 3.0), atol=1e-12)
 
 
+def test_holevo_quantity():
+    # Phase 23: Holevo quantity
+    from eigenlab.states import holevo
+
+    def binary_entropy(p: float) -> float:
+        return float(-p * np.log2(p) - (1.0 - p) * np.log2(1.0 - p))
+
+    def classical_entropy(probs) -> float:
+        p = np.asarray(probs, dtype=float)
+        p = p[p > 1e-15]
+        return float(-np.sum(p * np.log2(p)))
+
+    # |0> and |+> with equal weight: average state has eigenvalues (1 +- 1/sqrt(2))/2
+    avg_0_plus = 0.5 * density(ZERO) + 0.5 * density(PLUS)
+    evals = np.sort(np.real(np.linalg.eigvalsh(avg_0_plus)))
+    lam_plus = 0.5 * (1.0 + 1.0 / np.sqrt(2.0))
+    lam_minus = 0.5 * (1.0 - 1.0 / np.sqrt(2.0))
+    assert np.allclose(evals, [lam_minus, lam_plus], atol=1e-12)
+
+    chi_0_plus = holevo([0.5, 0.5], [ZERO, PLUS])
+    assert np.isclose(chi_0_plus, binary_entropy(lam_plus), atol=1e-12)
+    assert chi_0_plus <= classical_entropy([0.5, 0.5]) + 1e-12
+
+    # Two orthogonal states with equal weight: 1 bit
+    chi_orth = holevo([0.5, 0.5], [ZERO, ONE])
+    assert np.isclose(chi_orth, 1.0, atol=1e-12)
+    assert chi_orth <= classical_entropy([0.5, 0.5]) + 1e-12
+
+    # Two copies of the same state: 0
+    chi_same = holevo([0.5, 0.5], [PLUS, PLUS])
+    assert chi_same == 0.0
+    assert chi_same <= classical_entropy([0.5, 0.5]) + 1e-12
+
+    # Mixed-state ensemble check: chi <= H(p)
+    rho_mix = 0.7 * density(ZERO) + 0.3 * density(ONE)
+    chi_mix = holevo([0.3, 0.7], [rho_mix, PLUS_I])
+    assert 0.0 <= chi_mix <= classical_entropy([0.3, 0.7]) + 1e-12
+
+
+
 
 
 
