@@ -43,8 +43,22 @@ def number(d: int) -> np.ndarray:
     return np.diag(np.arange(dim, dtype=complex))
 
 
+def coherent(alpha: complex | float, d: int) -> np.ndarray:
+    """Return the unnormalized truncated coherent state ``c_n = exp(-|alpha|^2/2) alpha^n / sqrt(n!)``."""
+    import math
+
+    dim = _validate_dim(d)
+    alp = complex(alpha)
+    pref = np.exp(-0.5 * (abs(alp) ** 2))
+    return np.array(
+        [pref * (alp**n) / math.sqrt(math.factorial(n)) for n in range(dim)],
+        dtype=complex,
+    )
+
+
 __all__ = [
     "annihilation",
+    "coherent",
     "creation",
     "fock",
     "number",
