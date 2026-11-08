@@ -22,10 +22,12 @@ from eigenlab.codes import (
     stabilizer_group,
     stabilizers_commute,
     steane_logical_states,
+    toric_code_hamiltonian,
+    toric_code_stabilizers,
     transversal_clifford,
     weight_k_paulis,
 )
-from eigenlab.pauli import X, apply_pauli, conjugate_clifford, pauli, pauli_anti, pauli_comm
+from eigenlab.pauli import X, apply_pauli, conjugate_clifford, pauli, pauli_anti, pauli_comm, pauli_mult
 from eigenlab.states import ONE, PLUS, ZERO, basis, density, ghz
 
 
@@ -275,6 +277,41 @@ def test_steane_code():
     for _ in range(6):
         h_7 = np.kron(h_7, h_1)
     assert np.allclose(h_7 @ zero_L, plus_L, atol=1e-12)
+
+
+def test_toric_code_stars_and_plaquettes():
+    # Phase 14: Stars and plaquettes
+    stars, plaquettes = toric_code_stabilizers()
+    assert stars == ("XXXIIXII", "IXIIXXXI", "XIXXIIIX", "IIIXXIXX")
+    assert plaquettes == ("ZZIZZIII", "ZIIIZZIZ", "IZZZIIZI", "IIZIIZZZ")
+
+    all_stabs = stars + plaquettes
+    assert stabilizers_commute(all_stabs)
+    assert stabilizers_commute(toric_code_stabilizers())
+
+    # Product of four stars is I, and product of four plaquettes is I
+    prod_s = "IIIIIIII"
+    for s in stars:
+        phase, prod_s = pauli_mult(prod_s, s)
+        assert phase == 1.0
+    assert prod_s == "IIIIIIII"
+
+    prod_p = "IIIIIIII"
+    for p in plaquettes:
+        phase, prod_p = pauli_mult(prod_p, p)
+        assert phase == 1.0
+    assert prod_p == "IIIIIIII"
+
+    # Three of each generate a group of 2^6 = 64 elements, leaving 8 - 6 = 2 logical qubits
+    six_gens = stars[:3] + plaquettes[:3]
+    group = stabilizer_group(six_gens)
+    assert len(group) == 64
+    assert set(all_stabs).issubset(group)
+
+    H = toric_code_hamiltonian()
+    assert H.qubits == 8
+    assert len(H.terms) == 8
+
 
 
 

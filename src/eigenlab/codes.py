@@ -7,6 +7,7 @@ import itertools
 
 import numpy as np
 
+from eigenlab.hamiltonian import Hamiltonian
 from eigenlab.pauli import apply_pauli, conjugate_clifford, pauli, pauli_comm, pauli_mult
 from eigenlab.states import ONE, PLUS, ZERO, basis, density
 
@@ -48,9 +49,15 @@ def bit_flip_channel(rho: np.ndarray, p: float) -> np.ndarray:
 BIT_FLIP_STABILIZERS: tuple[str, str] = ("ZZI", "IZZ")
 
 
-def stabilizers_commute(stabilizers: Sequence[str]) -> bool:
+def stabilizers_commute(stabilizers: Sequence[str] | tuple[Sequence[str], ...]) -> bool:
     """Return True if all stabilizer labels have the same length and commute pairwise."""
-    stabs = list(stabilizers)
+    raw = list(stabilizers)
+    if not raw:
+        raise ValueError("stabilizers must be non-empty")
+    if not isinstance(raw[0], str):
+        stabs: list[str] = [s for group in raw for s in group]  # type: ignore[union-attr]
+    else:
+        stabs = raw  # type: ignore[assignment]
     if not stabs:
         raise ValueError("stabilizers must be non-empty")
     n = len(stabs[0])
@@ -304,6 +311,37 @@ def steane_logical_states() -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     return zero_L, one_L, plus_L
 
 
+def _toric_h(x: int, y: int) -> int:
+    return 2 * (2 * (y % 2) + (x % 2))
+
+
+def _toric_v(x: int, y: int) -> int:
+    return 2 * (2 * (y % 2) + (x % 2)) + 1
+
+
+def toric_code_stabilizers() -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """Return ``(stars, plaquettes)`` for the 2x2 toric code in order ``(x, y) = (0,0), (0,1), (1,0), (1,1)``."""
+    coords = ((0, 0), (0, 1), (1, 0), (1, 1))
+    stars: list[str] = []
+    plaquettes: list[str] = []
+    for x, y in coords:
+        star_edges = {_toric_h(x, y), _toric_h(x - 1, y), _toric_v(x, y), _toric_v(x, y - 1)}
+        stars.append("".join("X" if i in star_edges else "I" for i in range(8)))
+        plaq_edges = {_toric_h(x, y), _toric_h(x, y + 1), _toric_v(x, y), _toric_v(x + 1, y)}
+        plaquettes.append("".join("Z" if i in plaq_edges else "I" for i in range(8)))
+    return tuple(stars), tuple(plaquettes)
+
+
+TORIC_STAR_STABILIZERS, TORIC_PLAQUETTE_STABILIZERS = toric_code_stabilizers()
+TORIC_CODE_STABILIZERS: tuple[str, ...] = TORIC_STAR_STABILIZERS + TORIC_PLAQUETTE_STABILIZERS
+
+
+def toric_code_hamiltonian() -> Hamiltonian:
+    """Return the 2x2 toric code Hamiltonian ``-sum_s A_s - sum_p B_p`` on 8 qubits."""
+    stars, plaquettes = toric_code_stabilizers()
+    return Hamiltonian([(-1.0, label) for label in stars + plaquettes])
+
+
 __all__ = [
     "BIT_FLIP_STABILIZERS",
     "FIVE_QUBIT_STABILIZERS",
@@ -312,6 +350,9 @@ __all__ = [
     "STEANE_STABILIZERS",
     "STEANE_X_GENERATORS",
     "STEANE_Z_GENERATORS",
+    "TORIC_CODE_STABILIZERS",
+    "TORIC_PLAQUETTE_STABILIZERS",
+    "TORIC_STAR_STABILIZERS",
     "apply_pauli",
     "bit_flip_channel",
     "code_distance",
@@ -331,6 +372,8 @@ __all__ = [
     "stabilizers_commute",
     "steane_logical_states",
     "syndrome_projector",
+    "toric_code_hamiltonian",
+    "toric_code_stabilizers",
     "transversal_clifford",
     "weight_k_paulis",
 ]
