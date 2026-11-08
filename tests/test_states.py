@@ -487,5 +487,41 @@ def test_superdense_coding():
             assert np.isclose(abs(np.vdot(encoded_states[i], encoded_states[j])), expected_ov, atol=1e-12)
 
 
+def test_phase_estimation():
+    # Phase 21: Phase estimation
+    from eigenlab.states import phase_estimation
+
+    def exact_qpe_probs(phi: float, m: int) -> np.ndarray:
+        dim = 1 << m
+        out = np.zeros(dim, dtype=float)
+        for j in range(dim):
+            delta = phi - j / float(dim)
+            if np.isclose(np.mod(delta, 1.0), 0.0, atol=1e-14) or np.isclose(np.mod(delta, 1.0), 1.0, atol=1e-14):
+                out[j] = 1.0
+            else:
+                out[j] = (np.sin(np.pi * dim * delta) ** 2) / ((dim**2) * (np.sin(np.pi * delta) ** 2))
+        return out
+
+    # phi = 5/8 with m = 3 returns j = 5 with probability 1
+    probs_5_8, pre_5_8 = phase_estimation(5.0 / 8.0, 3, return_pre_iqft=True)
+    x_3 = np.arange(8, dtype=float)
+    expected_pre_5_8 = np.exp(2.0j * np.pi * (5.0 / 8.0) * x_3) / np.sqrt(8.0)
+    assert np.allclose(pre_5_8, expected_pre_5_8, atol=1e-12)
+    assert np.isclose(probs_5_8[5], 1.0, atol=1e-12)
+    assert np.allclose(probs_5_8, exact_qpe_probs(5.0 / 8.0, 3), atol=1e-12)
+
+    # phi = 1/3 with m = 4, 6 and phi = 0.2137 with m = 7 match formula to 1e-12
+    for phi, m in [(1.0 / 3.0, 4), (1.0 / 3.0, 6), (0.2137, 7)]:
+        probs, pre = phase_estimation(phi, m, return_pre_iqft=True)
+        dim = 1 << m
+        x = np.arange(dim, dtype=float)
+        expected_pre = np.exp(2.0j * np.pi * phi * x) / np.sqrt(float(dim))
+        assert np.allclose(pre, expected_pre, atol=1e-12)
+        assert np.allclose(probs, exact_qpe_probs(phi, m), atol=1e-12)
+        # Most likely outcome has probability at least 4 / pi^2
+        assert np.max(probs) >= 4.0 / (np.pi**2)
+
+
+
 
 

@@ -559,6 +559,51 @@ def superdense_decode(state: np.ndarray) -> np.ndarray:
     return np.kron(h_1q, I) @ (cnot_01 @ np.asarray(state, dtype=complex))
 
 
+def phase_estimation(
+    phi: float,
+    m: int,
+    return_pre_iqft: bool = False,
+) -> np.ndarray | tuple[np.ndarray, np.ndarray]:
+    """Run ``m``-qubit quantum phase estimation on ``U = diag(1, exp(2*pi*i*phi))`` with target ``|1>``.
+
+    Builds each controlled-``U^{2^{m-1-k}}`` gate as a ``2^{m+1} x 2^{m+1}`` matrix, applies
+    ``qft_matrix(m).conj().T`` on the counting register, and returns the length-``2^m``
+    probability vector over outcomes ``j = 0, ..., 2^m - 1`` (or ``(probs, pre_iqft_counting_ket)``
+    when ``return_pre_iqft=True``).
+    """
+    if not 1 <= m <= 7:
+        raise ValueError(f"phase_estimation requires m + 1 <= 8 (1 <= m <= 7), got m={m}")
+    dim_c = 1 << m
+    u_gate = np.diag([1.0, np.exp(2.0j * np.pi * float(phi))]).astype(complex)
+    i2 = np.eye(2, dtype=complex)
+
+    # Initial state |+>^{⊗m} ⊗ |1>
+    plus_m = np.ones(dim_c, dtype=complex) / np.sqrt(float(dim_c))
+    state = np.kron(plus_m, ONE)
+
+    x_idx = np.arange(dim_c)
+    for k in range(m):
+        power = 1 << (m - 1 - k)
+        u_pow = np.linalg.matrix_power(u_gate, power)
+        bit_k = ((x_idx >> (m - 1 - k)) & 1).astype(float)
+        p0_count = np.diag(1.0 - bit_k).astype(complex)
+        p1_count = np.diag(bit_k).astype(complex)
+        ctrl_u = np.kron(p0_count, i2) + np.kron(p1_count, u_pow)
+        state = ctrl_u @ state
+
+    # Extract counting register ket before inverse QFT (target is in |1>)
+    pre_iqft = state[1::2].copy()
+
+    iqft_full = np.kron(qft_matrix(m).conj().T, i2)
+    final_state = iqft_full @ state
+    final_grid = final_state.reshape((dim_c, 2))
+    probs = np.sum(np.abs(final_grid) ** 2, axis=1).real
+    if return_pre_iqft:
+        return probs, pre_iqft
+    return probs
+
+
+
 
 
 
