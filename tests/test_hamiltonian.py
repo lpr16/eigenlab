@@ -476,6 +476,37 @@ def test_momentum_blocks():
         assert np.allclose(union_spec, spectrum(h), atol=1e-10)
 
 
+def test_heisenberg_ring_one_magnon():
+    # Phase 11: One magnon
+    from eigenlab.hamiltonian import heisenberg_ring, total_spin
+
+    for n in [4, 5, 6, 7, 8]:
+        h_op = heisenberg_ring(n)
+        h_mat = h_op.to_matrix()
+        s2_op = total_spin(n)
+
+        single_indices = [1 << (n - 1 - j) for j in range(n)]
+        h_sub = h_mat[np.ix_(single_indices, single_indices)]
+        evals_sub = np.sort(np.real(np.linalg.eigvalsh(h_sub)))
+
+        ks = [2.0 * np.pi * m / n for m in range(n)]
+        expected = np.sort([n - 4.0 * (1.0 - np.cos(k)) for k in ks])
+        assert np.allclose(evals_sub, expected, atol=1e-12)
+
+        for m, k in enumerate(ks):
+            magnon = sum(
+                np.exp(1j * k * j) * basis(1 << (n - 1 - j), n) for j in range(n)
+            ) / np.sqrt(n)
+            e_k = n - 4.0 * (1.0 - np.cos(k))
+            assert np.allclose(h_mat @ magnon, e_k * magnon, atol=1e-12)
+            s2_val = s2_op.expectation(magnon)
+            if m == 0:
+                assert np.isclose(s2_val, (n / 2.0) * (n / 2.0 + 1.0), atol=1e-12)
+            else:
+                assert np.isclose(s2_val, (n / 2.0 - 1.0) * (n / 2.0), atol=1e-12)
+
+
+
 
 
 
