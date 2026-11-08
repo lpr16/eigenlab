@@ -27,6 +27,7 @@ from eigenlab.codes import (
     transversal_clifford,
     weight_k_paulis,
 )
+from eigenlab.hamiltonian import eigensystem, spectrum
 from eigenlab.pauli import X, apply_pauli, conjugate_clifford, pauli, pauli_anti, pauli_comm, pauli_mult
 from eigenlab.states import ONE, PLUS, ZERO, basis, density, ghz
 
@@ -311,6 +312,30 @@ def test_toric_code_stars_and_plaquettes():
     H = toric_code_hamiltonian()
     assert H.qubits == 8
     assert len(H.terms) == 8
+
+
+def test_toric_code_spectrum_by_counting_syndromes():
+    # Phase 15: Spectrum by counting syndromes
+    import math
+
+    # Verify the combinatorial syndrome count matches the table
+    counts: dict[float, int] = {}
+    for a in (0, 2, 4):
+        for b in (0, 2, 4):
+            energy = -8.0 + 2.0 * (a + b)
+            deg = 4 * math.comb(4, a) * math.comb(4, b)
+            counts[energy] = counts.get(energy, 0) + deg
+
+    assert counts == {-8.0: 4, -4.0: 48, 0.0: 152, 4.0: 48, 8.0: 4}
+    assert sum(counts.values()) == 256
+
+    expected = np.array(
+        [-8.0] * 4 + [-4.0] * 48 + [0.0] * 152 + [4.0] * 48 + [8.0] * 4,
+        dtype=float,
+    )
+    vals = spectrum(toric_code_hamiltonian())
+    assert np.allclose(vals, expected, atol=1e-12)
+
 
 
 
