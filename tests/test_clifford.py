@@ -128,3 +128,43 @@ def test_unitary_2_design():
     assert np.isclose(state_fp, 1.0 / 3.0, atol=1e-12)
     assert np.isclose(state_fp, expected_haar, atol=1e-12)
 
+
+def test_twirling():
+    # Phase 15: Twirling
+    from eigenlab.channels import amplitude_damping, depolarize
+    from eigenlab.clifford import twirl
+    from eigenlab.states import ONE, PLUS, PLUS_I, ZERO, density
+
+    minus = (ZERO - ONE) / np.sqrt(2.0)
+    minus_i = (ZERO - 1j * ONE) / np.sqrt(2.0)
+    stabilizer_states = [ZERO, ONE, PLUS, minus, PLUS_I, minus_i]
+
+    for p in [0.0, 0.3, 1.0]:
+        ch = lambda rho: amplitude_damping(rho, p)
+        tw = twirl(ch)
+
+        # Entanglement fidelity: F_e = ∑_k |Tr E_k|²/d² = (1 + √(1−p))²/4
+        fe = (1.0 + np.sqrt(1.0 - p)) ** 2 / 4.0
+        lam = (4.0 * fe - 1.0) / 3.0
+        depol_p = 3.0 * (1.0 - lam) / 4.0
+
+        # Twirl is depolarizing: ρ ↦ λρ + (1−λ) I/2 = depolarize(ρ, 3(1−λ)/4)
+        for s in stabilizer_states:
+            rho = density(s)
+            res_tw = tw(rho)
+            res_depol = depolarize(rho, depol_p)
+            assert np.allclose(res_tw, res_depol, atol=1e-12)
+
+        # Average fidelity over the six stabilizer states is (2F_e + 1)/3 = (1 + λ)/2
+        fids = [np.real(np.vdot(s, tw(density(s)) @ s)) for s in stabilizer_states]
+        avg_fid = np.mean(fids)
+        expected_avg_fid = (2.0 * fe + 1.0) / 3.0
+        assert np.isclose(avg_fid, expected_avg_fid, atol=1e-12)
+        assert np.isclose(avg_fid, (1.0 + lam) / 2.0, atol=1e-12)
+
+        # At p = 1, every state goes to |0⟩, and the average of |⟨ψ|0⟩|² over the six states is 1/2
+        if p == 1.0:
+            overlaps_p1 = [abs(np.vdot(s, ZERO)) ** 2 for s in stabilizer_states]
+            assert np.isclose(np.mean(overlaps_p1), 0.5, atol=1e-12)
+
+

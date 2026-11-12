@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+from typing import Callable
+
 import numpy as np
+
 
 I = np.eye(2, dtype=complex)
 X = np.array([[0, 1], [1, 0]], dtype=complex)
@@ -44,3 +47,25 @@ def one_qubit_cliffords() -> list[np.ndarray]:
                 group.append(prod)
 
     return group
+
+
+def twirl(channel: Callable[[np.ndarray], np.ndarray]) -> Callable[[np.ndarray], np.ndarray]:
+    """Twirl a one-qubit channel over the 24-element Clifford group.
+
+    Returns the twirled channel ρ ↦ (1/24) ∑_{C ∈ G} C† channel(C ρ C†) C.
+    """
+    cliffords = one_qubit_cliffords()
+
+    def twirled_channel(rho: np.ndarray) -> np.ndarray:
+        mat = np.asarray(rho, dtype=complex)
+        if mat.ndim == 1:
+            from eigenlab.states import density
+
+            mat = density(mat)
+        out = np.zeros_like(mat)
+        for c in cliffords:
+            out += c.conj().T @ channel(c @ mat @ c.conj().T) @ c
+        return out / len(cliffords)
+
+    return twirled_channel
+
