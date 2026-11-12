@@ -56,3 +56,75 @@ def test_twenty_four_elements():
 
     # The map C ↦ (C X C†, C Z C†) is injective: all 24 pairs are distinct
     assert len(pairs) == 24
+
+
+def test_unitary_2_design():
+    # Phase 14: A unitary 2-design
+    # The second frame potential of a group G is (1/|G|) ∑_{C ∈ G} |Tr C|⁴.
+    # Haar measure gives 2 for d >= 2 (Gross, Audenaert and Eisert, J. Math. Phys. 48, 052104 (2007)).
+    # Count by class for the 24 one-qubit Cliffords:
+    # - the identity gives 16 (1 element with |Tr| = 2)
+    # - the 3 Paulis are traceless (|Tr| = 0, giving 0)
+    # - the 8 order-3 rotations have |Tr| = 1, giving 8 (8 * 1⁴ = 8)
+    # - the 6 quarter turns have |Tr| = √2, giving 24 (6 * (√2)⁴ = 24)
+    # - the 6 edge half-turns are traceless (|Tr| = 0, giving 0)
+    # Total sum is 16 + 0 + 8 + 24 + 0 = 48, so the frame potential is 48/24 = 2.
+    from eigenlab.pauli import I, X, Y, Z
+    from eigenlab.states import ONE, PLUS, PLUS_I, ZERO
+
+    cliffords = one_qubit_cliffords()
+    abs_traces = [abs(np.trace(c)) for c in cliffords]
+
+    count_id = sum(np.isclose(t, 2.0) for t in abs_traces)
+    count_traceless = sum(np.isclose(t, 0.0) for t in abs_traces)
+    count_rot3 = sum(np.isclose(t, 1.0) for t in abs_traces)
+    count_qturn = sum(np.isclose(t, np.sqrt(2.0)) for t in abs_traces)
+
+    assert count_id == 1
+    assert count_traceless == 9  # 3 Paulis + 6 edge half-turns
+    assert count_rot3 == 8
+    assert count_qturn == 6
+
+    # Contributions:
+    # Identity: 1 * 16 = 16
+    # Order-3: 8 * 1 = 8
+    # Quarter-turns: 6 * 4 = 24
+    # Traceless: 9 * 0 = 0
+    # Total sum: 16 + 8 + 24 = 48 -> 48 / 24 = 2
+    sum_traces_4 = sum(t**4 for t in abs_traces)
+    assert np.isclose(sum_traces_4, 48.0, atol=1e-12)
+    fp_clifford = sum_traces_4 / len(cliffords)
+    assert np.isclose(fp_clifford, 2.0, atol=1e-12)
+
+    # The one-qubit Pauli group, modulo phase, gives 4 and is not a 2-design
+    pauli_group = [I, X, Y, Z]
+    fp_pauli = sum(abs(np.trace(p)) ** 4 for p in pauli_group) / len(pauli_group)
+    assert np.isclose(fp_pauli, 4.0, atol=1e-12)
+
+    # The six stabilizer states are a state 2-design:
+    # (1/36) ∑_{ij} |⟨ψ_i|ψ_j⟩|⁴ = 1/3 = 2/(d(d+1))
+    # The pairs contribute 6 identical pairs at 1, 6 antipodal pairs at 0, and 24 pairs at 1/4.
+    minus = (ZERO - ONE) / np.sqrt(2.0)
+    minus_i = (ZERO - 1j * ONE) / np.sqrt(2.0)
+    stabilizer_states = [ZERO, ONE, PLUS, minus, PLUS_I, minus_i]
+
+    overlaps_4 = []
+    for si in stabilizer_states:
+        for sj in stabilizer_states:
+            overlaps_4.append(abs(np.vdot(si, sj)) ** 4)
+
+    assert len(overlaps_4) == 36
+    count_identical = sum(np.isclose(o, 1.0) for o in overlaps_4)
+    count_antipodal = sum(np.isclose(o, 0.0) for o in overlaps_4)
+    count_quarter = sum(np.isclose(o, 0.25) for o in overlaps_4)
+
+    assert count_identical == 6
+    assert count_antipodal == 6
+    assert count_quarter == 24
+
+    state_fp = sum(overlaps_4) / len(overlaps_4)
+    d = 2
+    expected_haar = 2.0 / (d * (d + 1))  # 1/3
+    assert np.isclose(state_fp, 1.0 / 3.0, atol=1e-12)
+    assert np.isclose(state_fp, expected_haar, atol=1e-12)
+
