@@ -328,6 +328,53 @@ class Tableau:
                 )
             return det_outcome, 1.0
 
+    def expectation(self, label: str) -> int:
+        """Compute the expectation value of Pauli string `label`, returning -1, 0, or +1.
+
+        - Returns 0 if label anticommutes with any stabilizer.
+        - Otherwise label is ± a product of stabilizers (determined via destabilizers).
+        """
+        if len(label) != self.n:
+            raise ValueError(f"label length {len(label)} does not match tableau qubits {self.n}")
+        x_p, z_p = pauli_to_bits(label)
+
+        # 1. If label anticommutes with any stabilizer, expectation is 0
+        for j in range(self.n):
+            inner = int(
+                (np.dot(x_p, self.z[self.n + j]) + np.dot(z_p, self.x[self.n + j])) % 2
+            )
+            if inner == 1:
+                return 0
+
+        # 2. Destabilizers determine which stabilizers multiply to label
+        c = np.zeros(self.n, dtype=int)
+        for i in range(self.n):
+            c[i] = int((np.dot(x_p, self.z[i]) + np.dot(z_p, self.x[i])) % 2)
+
+        # 3. Accumulate product of stabilizers
+        acc_x = np.zeros(self.n, dtype=np.uint8)
+        acc_z = np.zeros(self.n, dtype=np.uint8)
+        acc_r = 0
+        for i in range(self.n):
+            if c[i] == 1:
+                k_sum = int(
+                    np.sum(
+                        _PHASE_EXP[
+                            acc_x,
+                            acc_z,
+                            self.x[self.n + i],
+                            self.z[self.n + i],
+                        ]
+                    )
+                )
+                m = (k_sum // 2) % 2
+                acc_r ^= int(self.r[self.n + i]) ^ m
+                acc_x ^= self.x[self.n + i]
+                acc_z ^= self.z[self.n + i]
+
+        return -1 if acc_r else +1
+
+
 
 
 

@@ -583,6 +583,90 @@ def test_tableau_measurement():
                         tab.copy().measure(q, outcome=outcome)
 
 
+def test_tableau_expectation():
+    # Phase 9: Expectations from the group
+    from eigenlab.pauli import expectation_label
+    from eigenlab.stabilizer import Tableau
+    from eigenlab.states import basis
+
+    circuits = [
+        (2, [("h", 0), ("cnot", 0, 1), ("s", 1)]),
+        (3, [("h", 0), ("cnot", 0, 1), ("cnot", 1, 2), ("s", 0), ("h", 2)]),
+        (
+            4,
+            [
+                ("h", 0),
+                ("h", 1),
+                ("h", 2),
+                ("h", 3),
+                ("cnot", 0, 1),
+                ("cnot", 1, 2),
+                ("cnot", 2, 3),
+                ("s", 1),
+                ("s", 3),
+            ],
+        ),
+        (
+            4,
+            [
+                ("h", 0),
+                ("s", 0),
+                ("cnot", 0, 2),
+                ("h", 1),
+                ("cnot", 1, 3),
+                ("s", 2),
+                ("cnot", 2, 3),
+                ("h", 3),
+            ],
+        ),
+    ]
+
+    H_mat = np.array([[1, 1], [1, -1]], dtype=complex) / np.sqrt(2.0)
+    S_mat = np.array([[1, 0], [0, 1j]], dtype=complex)
+    X_mat = np.array([[0, 1], [1, 0]], dtype=complex)
+    P0 = np.array([[1, 0], [0, 0]], dtype=complex)
+    P1 = np.array([[0, 0], [0, 1]], dtype=complex)
+
+    for n, gates in circuits:
+        state = basis(0, n)
+        tab = Tableau(n)
+        for g in gates:
+            if g[0] == "h":
+                op = 1
+                for i in range(n):
+                    u = H_mat if i == g[1] else np.eye(2, dtype=complex)
+                    op = np.kron(op, u) if i > 0 else u
+                state = op @ state
+                tab.h(g[1])
+            elif g[0] == "s":
+                op = 1
+                for i in range(n):
+                    u = S_mat if i == g[1] else np.eye(2, dtype=complex)
+                    op = np.kron(op, u) if i > 0 else u
+                state = op @ state
+                tab.s(g[1])
+            elif g[0] == "cnot":
+                c, t = g[1], g[2]
+                m0 = 1
+                m1 = 1
+                for i in range(n):
+                    op0 = P0 if i == c else np.eye(2, dtype=complex)
+                    op1 = P1 if i == c else (X_mat if i == t else np.eye(2, dtype=complex))
+                    m0 = np.kron(m0, op0) if i > 0 else op0
+                    m1 = np.kron(m1, op1) if i > 0 else op1
+                state = (m0 + m1) @ state
+                tab.cnot(c, t)
+
+        # For circuits of phase 7 with n <= 4, every label of length n (4^n of them)
+        # matches expectation_label on the state vector exactly.
+        for p in itertools.product("IXYZ", repeat=n):
+            lbl = "".join(p)
+            exp_val = tab.expectation(lbl)
+            exp_true = expectation_label(state, lbl)
+            assert np.isclose(exp_val, exp_true, atol=1e-12)
+
+
+
 
 
 
