@@ -223,4 +223,71 @@ def test_randomized_benchmarking_exact_average():
             assert np.isclose(avg_f, expected_f, atol=1e-12)
 
 
+def test_t_is_not_clifford():
+    # Phase 17: T is not Clifford
+    # Algebra using |0⟩⟨1| = (X + iY)/2:
+    #   X = |0⟩⟨1| + |1⟩⟨0|
+    #   T |0⟩⟨1| T† = |0⟩⟨1| e^{-iπ/4} = (cos(π/4) - i sin(π/4)) |0⟩⟨1| = (1 - i)/√2 |0⟩⟨1|
+    #   T |1⟩⟨0| T† = e^{iπ/4} |1⟩⟨0| = (1 + i)/√2 |1⟩⟨0|
+    # Since |0⟩⟨1| = (X + iY)/2 and |1⟩⟨0| = (X - iY)/2:
+    #   T X T† = (1 - i)/√2 (X + iY)/2 + (1 + i)/√2 (X - iY)/2
+    #          = [ (1 - i)(X + iY) + (1 + i)(X - iY) ] / (2√2)
+    #          = [ (X + iY - iX + Y) + (X - iY + iX + Y) ] / (2√2)
+    #          = (2X + 2Y) / (2√2) = (X + Y)/√2.
+    # Because (X + Y)/√2 has support on both X and Y with coefficient 1/√2,
+    # it is not a signed Pauli operator (which must be ±X, ±Y, or ±Z).
+    #
+    # Furthermore, (X + Y)/√2 is itself a Clifford unitary:
+    #   ((X + Y)/√2) X ((X + Y)/√2)† = Y
+    #   ((X + Y)/√2) Y ((X + Y)/√2)† = X
+    #   ((X + Y)/√2) Z ((X + Y)/√2)† = -Z
+    # Thus (X + Y)/√2 sends X → Y, Y → X, Z → −Z, which are all signed Paulis.
+    # Consequently, T conjugates X to a Clifford unitary, and since T Z T† = Z is Pauli,
+    # and T Y T† = T (-i Z X) T† = -i Z (X + Y)/√2 = (Y - X)/√2 is also Clifford,
+    # T conjugates every Pauli into the Clifford group, which places T in the third level
+    # of the Clifford hierarchy (C_3 \ C_2).
+    from eigenlab.clifford import T, canonicalize_phase, one_qubit_cliffords
+    from eigenlab.pauli import X, Y, Z
+
+    # 1. T = diag(1, e^{iπ/4})
+    expected_T = np.diag([1.0, np.exp(1j * np.pi / 4.0)])
+    assert np.allclose(T, expected_T, atol=1e-12)
+
+    # Projector algebra check
+    ket0_bra1 = (X + 1j * Y) / 2.0
+    ket1_bra0 = (X - 1j * Y) / 2.0
+    assert np.allclose(ket0_bra1, [[0, 1], [0, 0]])
+    assert np.allclose(ket1_bra0, [[0, 0], [1, 0]])
+    assert np.allclose(X, ket0_bra1 + ket1_bra0)
+
+    t_01 = T @ ket0_bra1 @ T.conj().T
+    t_10 = T @ ket1_bra0 @ T.conj().T
+    assert np.allclose(t_01, np.exp(-1j * np.pi / 4.0) * ket0_bra1)
+    assert np.allclose(t_10, np.exp(1j * np.pi / 4.0) * ket1_bra0)
+
+    # 2. T X T† = (X + Y)/√2, not a signed Pauli
+    txt = T @ X @ T.conj().T
+    expected_txt = (X + Y) / np.sqrt(2.0)
+    assert np.allclose(txt, expected_txt, atol=1e-12)
+
+    signed_paulis = [X, -X, Y, -Y, Z, -Z]
+    assert not any(np.allclose(txt, p, atol=1e-6) for p in signed_paulis)
+
+    # 3. (X + Y)/√2 is itself a Clifford sending X → Y, Y → X, Z → −Z
+    u = expected_txt
+    assert np.allclose(u @ X @ u.conj().T, Y, atol=1e-12)
+    assert np.allclose(u @ Y @ u.conj().T, X, atol=1e-12)
+    assert np.allclose(u @ Z @ u.conj().T, -Z, atol=1e-12)
+
+    cliffords = one_qubit_cliffords()
+    u_canon = canonicalize_phase(u)
+    assert any(np.allclose(u_canon, c, atol=1e-8) for c in cliffords)
+
+    # 4. T conjugates every Pauli into the Clifford group
+    for p_mat in [X, Y, Z]:
+        conj_p = canonicalize_phase(T @ p_mat @ T.conj().T)
+        assert any(np.allclose(conj_p, c, atol=1e-8) for c in cliffords)
+
+
+
 

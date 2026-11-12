@@ -13,6 +13,8 @@ Y = np.array([[0, -1j], [1j, 0]], dtype=complex)
 Z = np.array([[1, 0], [0, -1]], dtype=complex)
 H = np.array([[1, 1], [1, -1]], dtype=complex) / np.sqrt(2.0)
 S = np.array([[1, 0], [0, 1j]], dtype=complex)
+T = np.diag([1.0, np.exp(1j * np.pi / 4.0)])
+
 
 
 def canonicalize_phase(u: np.ndarray, tol: float = 1e-10) -> np.ndarray:
