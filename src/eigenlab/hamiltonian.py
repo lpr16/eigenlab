@@ -460,7 +460,82 @@ def taper(
     return Hamiltonian(new_terms).simplify()
 
 
+def z2_taper(
+    hamiltonian: Hamiltonian | Sequence[tuple[complex | float, str]],
+    signs: Sequence[int],
+    generators: Sequence[str] | None = None,
+) -> Hamiltonian:
+    """Taper a Hamiltonian on its Z2 symmetries using Clifford transformations.
+
+    Brings generators to reduced row echelon form over GF(2). For each generator i
+    with pivot qubit q_i, conjugates H by U_i = (X_{q_i} + τ_i) / √2. Then replaces
+    X_{q_i} by sign_i and drops the pivot qubit.
+    """
+    from eigenlab.pauli import pauli_mult
+    from eigenlab.stabilizer import _gf2_rref, bits_to_pauli, pauli_to_bits, z2_symmetries
+
+    ham = hamiltonian if isinstance(hamiltonian, Hamiltonian) else Hamiltonian(hamiltonian)
+    ham = ham.simplify()
+    n = ham.qubits
+
+    if generators is None:
+        gens = z2_symmetries(ham)
+    else:
+        gens = list(generators)
+
+    k = len(gens)
+    signs_list = list(signs)
+    if len(signs_list) != k:
+        raise ValueError(f"signs length ({len(signs_list)}) must match number of generators ({k})")
+    for s in signs_list:
+        if s not in (1, -1):
+            raise ValueError(f"sign {s} must be +1 or -1")
+
+    if k == 0:
+        return ham
+
+    z_rows = [pauli_to_bits(g)[1] for g in gens]
+    z_mat = np.array(z_rows, dtype=np.uint8)
+    rref, pivot_cols = _gf2_rref(z_mat)
+
+    taus = [bits_to_pauli(np.zeros(n, dtype=np.uint8), row) for row in rref if np.any(row)]
+    if len(taus) != k:
+        raise ValueError(f"generators are not independent: rank is {len(taus)} but got {k}")
+
+    current_h = ham
+    for tau, q in zip(taus, pivot_cols):
+        x_lbl = ["I"] * n
+        x_lbl[q] = "X"
+        x_str = "".join(x_lbl)
+
+        new_terms: list[tuple[complex, str]] = []
+        for coeff, lbl in current_h.terms:
+            if lbl[q] in ("I", "X"):
+                new_terms.append((coeff, lbl))
+            else:
+                ph1, p1 = pauli_mult(x_str, lbl)
+                ph2, p2 = pauli_mult(p1, tau)
+                new_terms.append((coeff * ph1 * ph2, p2))
+        current_h = Hamiltonian(new_terms).simplify()
+
+    drop_set = set(pivot_cols)
+    tapered_terms: list[tuple[complex, str]] = []
+    for coeff, lbl in current_h.terms:
+        c = coeff
+        for q, s in zip(pivot_cols, signs_list):
+            if lbl[q] == "X":
+                c = c * s
+        rem_lbl = "".join(ch for idx, ch in enumerate(lbl) if idx not in drop_set)
+        tapered_terms.append((c, rem_lbl))
+
+    rem = n - len(pivot_cols)
+    if not tapered_terms:
+        tapered_terms = [(0.0j, "I" * rem)]
+    return Hamiltonian(tapered_terms).simplify()
+
+
 def z2_symmetries(hamiltonian: Hamiltonian) -> list[str]:
+
     """Find independent Z_2 symmetry generators (made of I and Z) of a Hamiltonian."""
     from eigenlab.stabilizer import z2_symmetries as _z2_symmetries
 

@@ -142,3 +142,11 @@ def z2_symmetries(hamiltonian: Hamiltonian) -> list[str]:
     return labels
 
 
+def z2_taper(hamiltonian, signs, generators=None):
+    """Taper a Hamiltonian on its Z2 symmetries using Clifford transformations."""
+    from eigenlab.hamiltonian import z2_taper as _z2_taper
+
+    return _z2_taper(hamiltonian, signs, generators)
+
+
+

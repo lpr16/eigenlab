@@ -167,3 +167,89 @@ def test_z2_symmetries():
     assert "ZZII" in group
 
 
+def test_z2_taper_one_clifford_per_symmetry():
+    # Phase 4: One Clifford per symmetry
+    from eigenlab.hamiltonian import Hamiltonian, z2_taper
+    from eigenlab.molecular import h2_sto3g_hamiltonian
+    from eigenlab.pauli import pauli, pauli_mult
+    from eigenlab.stabilizer import _gf2_rref, bits_to_pauli, pauli_to_bits, z2_symmetries
+    from eigenlab.states import ONE, PLUS, ZERO
+
+    MINUS = (ZERO - ONE) / np.sqrt(2.0)
+
+    h2 = h2_sto3g_hamiltonian(1.401)
+    gens = z2_symmetries(h2)
+    assert len(gens) == 3
+
+    z_rows = [pauli_to_bits(g)[1] for g in gens]
+    rref, pivot_cols = _gf2_rref(np.array(z_rows))
+    taus = [bits_to_pauli(np.zeros(4), row) for row in rref]
+    assert len(pivot_cols) == 3
+
+    dim = 16
+    U = np.eye(dim, dtype=complex)
+    u_list = []
+    for tau, q in zip(taus, pivot_cols):
+        x_lbl = ["I"] * 4
+        x_lbl[q] = "X"
+        x_str = "".join(x_lbl)
+        Ui = (pauli(x_str) + pauli(tau)) / np.sqrt(2.0)
+        # Ui is Hermitian and unitary
+        assert np.allclose(Ui @ Ui.conj().T, np.eye(dim))
+        assert np.allclose(Ui @ pauli(tau) @ Ui, pauli(x_str))
+        u_list.append(Ui)
+        U = Ui @ U
+
+    # 1. U is unitary
+    assert np.allclose(U @ U.conj().T, np.eye(dim))
+
+    # 2. U τ_i U† = X_{q_i}
+    for tau, q in zip(taus, pivot_cols):
+        x_lbl = ["I"] * 4
+        x_lbl[q] = "X"
+        x_str = "".join(x_lbl)
+        assert np.allclose(U @ pauli(tau) @ U.conj().T, pauli(x_str), atol=1e-12)
+
+    # 3. U H U† has only I and X on every pivot qubit
+    h_mat = h2.to_matrix()
+    h_prime = U @ h_mat @ U.conj().T
+
+    # Track term-list conjugation by each U_i
+    current_h = h2
+    for tau, q in zip(taus, pivot_cols):
+        x_lbl = ["I"] * 4
+        x_lbl[q] = "X"
+        x_str = "".join(x_lbl)
+        new_terms = []
+        for coeff, lbl in current_h.terms:
+            if lbl[q] in ("I", "X"):
+                new_terms.append((coeff, lbl))
+            else:
+                ph1, p1 = pauli_mult(x_str, lbl)
+                ph2, p2 = pauli_mult(p1, tau)
+                new_terms.append((coeff * ph1 * ph2, p2))
+        current_h = Hamiltonian(new_terms).simplify()
+
+    assert np.allclose(current_h.to_matrix(), h_prime, atol=1e-12)
+    for _, lbl in current_h.terms:
+        for q in pivot_cols:
+            assert lbl[q] in ("I", "X")
+
+    # 4. The term-list result of z2_taper matches the matrix result for every sign choice
+    for signs in itertools.product([1, -1], repeat=3):
+        h_tapered = z2_taper(h2, signs=signs, generators=gens)
+        mat_tapered = h_tapered.to_matrix()
+
+        # Matrix projection onto the sector defined by signs
+        # Remaining qubit is qubit 3 (dim = 2)
+        v_cols = []
+        for b in [ZERO, ONE]:
+            s_states = [PLUS if s == 1 else MINUS for s in signs]
+            full_ket = np.kron(s_states[0], np.kron(s_states[1], np.kron(s_states[2], b)))
+            v_cols.append(full_ket)
+        Vs = np.column_stack(v_cols)
+        expected_mat = Vs.conj().T @ h_prime @ Vs
+        assert np.allclose(mat_tapered, expected_mat, atol=1e-12)
+
+
+
