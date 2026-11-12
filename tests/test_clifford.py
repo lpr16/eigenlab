@@ -389,6 +389,59 @@ def test_stabilizer_renyi_entropy():
         assert np.isclose(stabilizer_renyi_entropy(c_state), expected_m2_t, atol=1e-12)
 
 
+def test_the_most_magic_qubit():
+    # Phase 19: The most magic qubit
+    # Algebra:
+    # Any single-qubit state has density matrix ρ = (I + r_x X + r_y Y + r_z Z) / 2.
+    # The Pauli expectation values for unsigned Paulis {I, X, Y, Z} are:
+    #   ⟨I⟩ = 1, ⟨X⟩ = r_x, ⟨Y⟩ = r_y, ⟨Z⟩ = r_z.
+    # Therefore, the sum of fourth powers is:
+    #   ∑_P ⟨P⟩⁴ = 1 + r_x⁴ + r_y⁴ + r_z⁴.
+    # On pure states, the Bloch vector has unit length:
+    #   ∑_{i} r_i² = r_x² + r_y² + r_z² = 1.
+    # By the Cauchy–Schwarz inequality applied to vectors (r_x², r_y², r_z²) and (1, 1, 1):
+    #   (r_x² · 1 + r_y² · 1 + r_z² · 1)² <= (r_x⁴ + r_y⁴ + r_z⁴) · (1² + 1² + 1²)
+    #   1 <= 3 (r_x⁴ + r_y⁴ + r_z⁴)
+    #   ∑ r_i⁴ >= (∑ r_i²)² / 3 = 1/3,
+    # with equality holding if and only if |r_x| = |r_y| = |r_z| = 1/√3.
+    # Thus, for any pure state:
+    #   ∑_P ⟨P⟩⁴ >= 1 + 1/3 = 4/3.
+    # With d = 2:
+    #   (1/d) ∑_P ⟨P⟩⁴ >= (4/3) / 2 = 2/3.
+    # Since -log₂ is a monotonically decreasing function:
+    #   M₂ = -log₂((1/d) ∑_P ⟨P⟩⁴) <= -log₂(2/3) = log₂(3/2).
+    from eigenlab.clifford import stabilizer_renyi_entropy
+
+    expected_max = np.log2(1.5)  # log₂(3/2)
+
+    # 1. The state with Bloch vector (1, 1, 1)/√3 attains it to 1e-12
+    # In spherical coordinates: r_z = cos(θ) = 1/√3, tan(φ) = r_y / r_x = 1 -> φ = π/4
+    theta = np.arccos(1.0 / np.sqrt(3.0))
+    phi = np.pi / 4.0
+    most_magic_ket = np.array(
+        [np.cos(theta / 2.0), np.exp(1j * phi) * np.sin(theta / 2.0)]
+    )
+
+    m2_val = stabilizer_renyi_entropy(most_magic_ket)
+    assert np.isclose(m2_val, expected_max, atol=1e-12)
+
+    # 2. On a 181 × 361 grid in (θ, φ), no pure state exceeds log₂(3/2) + 1e-12
+    theta_grid = np.linspace(0.0, np.pi, 181)
+    phi_grid = np.linspace(0.0, 2.0 * np.pi, 361)
+    T, P = np.meshgrid(theta_grid, phi_grid, indexing="ij")
+
+    rx = np.sin(T) * np.cos(P)
+    ry = np.sin(T) * np.sin(P)
+    rz = np.cos(T)
+
+    sum_4 = 1.0 + rx**4 + ry**4 + rz**4
+    m2_grid = -np.log2(sum_4 / 2.0)
+    max_grid = np.max(m2_grid)
+
+    assert max_grid <= expected_max + 1e-12
+
+
+
 
 
 
