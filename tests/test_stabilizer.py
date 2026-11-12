@@ -785,6 +785,99 @@ def test_toric_code_larger_tori():
     assert count_w2 == 1377
 
 
+def test_teleportation_by_tableau():
+    # Phase 12: Teleportation by tableau
+    from eigenlab.stabilizer import Tableau
+
+    def apply_x(tab: Tableau, q: int):
+        # X = H S S H
+        tab.h(q).s(q).s(q).h(q)
+
+    def apply_z(tab: Tableau, q: int):
+        # Z = S S
+        tab.s(q).s(q)
+
+    # Six stabilizer inputs: |0⟩, |1⟩, |+⟩, |−⟩, |+i⟩, |−i⟩
+    inputs = [
+        ("|0>", [], (+1, "Z")),
+        ("|1>", [("x", 0)], (-1, "Z")),
+        ("|+>", [("h", 0)], (+1, "X")),
+        ("|->", [("h", 0), ("z", 0)], (-1, "X")),
+        ("|+i>", [("h", 0), ("s", 0)], (+1, "Y")),
+        ("|-i>", [("h", 0), ("s", 0), ("z", 0)], (-1, "Y")),
+    ]
+
+    for name, prep, (exp_sign, exp_op) in inputs:
+        for m0 in (0, 1):
+            for m1 in (0, 1):
+                tab = Tableau(3)
+                for g, q in prep:
+                    if g == "h":
+                        tab.h(q)
+                    elif g == "s":
+                        tab.s(q)
+                    elif g == "x":
+                        apply_x(tab, q)
+                    elif g == "z":
+                        apply_z(tab, q)
+
+                # Resource Bell pair on qubits 1 and 2: H(1), CNOT(1, 2)
+                tab.h(1).cnot(1, 2)
+
+                # Alice teleportation circuit: CNOT(0, 1), H(0)
+                tab.cnot(0, 1).h(0)
+
+                # Measurements on qubits 0 and 1
+                out0, p0 = tab.measure(0, outcome=m0)
+                out1, p1 = tab.measure(1, outcome=m1)
+                assert out0 == m0 and out1 == m1
+                # Each outcome has probability 1/4
+                assert np.isclose(p0 * p1, 0.25)
+
+                # Bob corrections: Z^{m0} X^{m1} with Z = S S, X = H S S H
+                if m1 == 1:
+                    apply_x(tab, 2)
+                if m0 == 1:
+                    apply_z(tab, 2)
+
+                # Verify qubit 2's expectation matches
+                assert tab.expectation("II" + exp_op) == exp_sign
+
+                # Also verify the isolated stabilizer on qubit 2
+                q0_row = [
+                    i
+                    for i in range(3, 6)
+                    if tab.x[i, 0] == 0
+                    and tab.z[i, 0] == 1
+                    and tab.x[i, 1] == 0
+                    and tab.z[i, 1] == 0
+                    and tab.x[i, 2] == 0
+                    and tab.z[i, 2] == 0
+                ][0]
+                q1_row = [
+                    i
+                    for i in range(3, 6)
+                    if tab.x[i, 0] == 0
+                    and tab.z[i, 0] == 0
+                    and tab.x[i, 1] == 0
+                    and tab.z[i, 1] == 1
+                    and tab.x[i, 2] == 0
+                    and tab.z[i, 2] == 0
+                ][0]
+                q2_row = [i for i in range(3, 6) if i not in (q0_row, q1_row)][0]
+
+                if tab.z[q2_row, 0] == 1:
+                    tab._rowsum(q2_row, q0_row)
+                if tab.z[q2_row, 1] == 1:
+                    tab._rowsum(q2_row, q1_row)
+
+                stabs = tab.stabilizers()
+                s2 = stabs[q2_row - 3]
+                assert s2.label == "II" + exp_op
+                assert s2.sign == exp_sign
+
+
+
 
 
 
