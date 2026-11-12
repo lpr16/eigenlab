@@ -71,3 +71,37 @@ def twirl(channel: Callable[[np.ndarray], np.ndarray]) -> Callable[[np.ndarray],
 
     return twirled_channel
 
+
+def stabilizer_renyi_entropy(state: np.ndarray) -> float:
+    """Compute the stabilizer 2-Rényi entropy M₂ = -log₂((1/d) ∑_P ⟨P⟩⁴).
+
+    Defined by Leone, Oliviero and Hamma, Phys. Rev. Lett. 128, 050402 (2022).
+    """
+    import itertools
+    from eigenlab.pauli import expectation_label, pauli
+
+    arr = np.asarray(state, dtype=complex)
+    if arr.ndim == 2:
+        d = arr.shape[0]
+        n = int(round(np.log2(d)))
+        tot = 0.0
+        for p in itertools.product("IXYZ", repeat=n):
+            lbl = "".join(p)
+            val = float(np.real(np.trace(arr @ pauli(lbl))))
+            tot += val**4
+        return float(-np.log2(tot / d))
+    else:
+        d = len(arr)
+        n = int(round(np.log2(d)))
+        norm = np.linalg.norm(arr)
+        if norm == 0:
+            raise ValueError("state has zero norm")
+        ket = arr / norm
+        tot = 0.0
+        for p in itertools.product("IXYZ", repeat=n):
+            lbl = "".join(p)
+            val = expectation_label(ket, lbl)
+            tot += val**4
+        return float(-np.log2(tot / d))
+
+

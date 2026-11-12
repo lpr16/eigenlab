@@ -289,5 +289,106 @@ def test_t_is_not_clifford():
         assert any(np.allclose(conj_p, c, atol=1e-8) for c in cliffords)
 
 
+def test_stabilizer_renyi_entropy():
+    # Phase 18: Stabilizer Rényi entropy
+    from eigenlab.clifford import T, one_qubit_cliffords, stabilizer_renyi_entropy
+    from eigenlab.pauli import expectation_label
+    from eigenlab.states import ONE, PLUS, PLUS_I, ZERO, basis
+
+    # 1. It is 0 on the six one-qubit stabilizer states
+    minus = (ZERO - ONE) / np.sqrt(2.0)
+    minus_i = (ZERO - 1j * ONE) / np.sqrt(2.0)
+    for s in [ZERO, ONE, PLUS, minus, PLUS_I, minus_i]:
+        assert np.isclose(stabilizer_renyi_entropy(s), 0.0, atol=1e-12)
+
+    # 2. It is 0 on the state vectors of the phase-7 circuits with n <= 4
+    circuits_n_le_4 = [
+        (2, [("h", 0), ("cnot", 0, 1), ("s", 1)]),
+        (3, [("h", 0), ("cnot", 0, 1), ("cnot", 1, 2), ("s", 0), ("h", 2)]),
+        (
+            4,
+            [
+                ("h", 0),
+                ("h", 1),
+                ("h", 2),
+                ("h", 3),
+                ("cnot", 0, 1),
+                ("cnot", 1, 2),
+                ("cnot", 2, 3),
+                ("s", 1),
+                ("s", 3),
+            ],
+        ),
+        (
+            4,
+            [
+                ("h", 0),
+                ("s", 0),
+                ("cnot", 0, 2),
+                ("h", 1),
+                ("cnot", 1, 3),
+                ("s", 2),
+                ("cnot", 2, 3),
+                ("h", 3),
+            ],
+        ),
+    ]
+
+    H_mat = np.array([[1, 1], [1, -1]], dtype=complex) / np.sqrt(2.0)
+    S_mat = np.array([[1, 0], [0, 1j]], dtype=complex)
+    X_mat = np.array([[0, 1], [1, 0]], dtype=complex)
+    P0 = np.array([[1, 0], [0, 0]], dtype=complex)
+    P1 = np.array([[0, 0], [0, 1]], dtype=complex)
+
+    for n, gates in circuits_n_le_4:
+        state = basis(0, n)
+        for g in gates:
+            if g[0] == "h":
+                op = 1
+                for i in range(n):
+                    u = H_mat if i == g[1] else np.eye(2, dtype=complex)
+                    op = np.kron(op, u) if i > 0 else u
+                state = op @ state
+            elif g[0] == "s":
+                op = 1
+                for i in range(n):
+                    u = S_mat if i == g[1] else np.eye(2, dtype=complex)
+                    op = np.kron(op, u) if i > 0 else u
+                state = op @ state
+            elif g[0] == "cnot":
+                c, t = g[1], g[2]
+                m0 = 1
+                m1 = 1
+                for i in range(n):
+                    op0 = P0 if i == c else np.eye(2, dtype=complex)
+                    op1 = P1 if i == c else (X_mat if i == t else np.eye(2, dtype=complex))
+                    m0 = np.kron(m0, op0) if i > 0 else op0
+                    m1 = np.kron(m1, op1) if i > 0 else op1
+                state = (m0 + m1) @ state
+        assert np.isclose(stabilizer_renyi_entropy(state), 0.0, atol=1e-12)
+
+    # 3. |T⟩ = T|+⟩ has ⟨X⟩ = ⟨Y⟩ = 1/√2 and ⟨Z⟩ = 0, so the sum is 1 + 1/4 + 1/4 = 3/2 and M₂ = log₂(4/3)
+    t_ket = T @ PLUS
+    assert np.isclose(expectation_label(t_ket, "X"), 1.0 / np.sqrt(2.0), atol=1e-12)
+    assert np.isclose(expectation_label(t_ket, "Y"), 1.0 / np.sqrt(2.0), atol=1e-12)
+    assert np.isclose(expectation_label(t_ket, "Z"), 0.0, atol=1e-12)
+
+    expected_m2_t = np.log2(4.0 / 3.0)
+    assert np.isclose(stabilizer_renyi_entropy(t_ket), expected_m2_t, atol=1e-12)
+
+    # 4. |T⟩^{⊗k} has k log₂(4/3) for k = 1 … 4
+    prod_state = t_ket
+    for k in range(1, 5):
+        assert np.isclose(stabilizer_renyi_entropy(prod_state), k * expected_m2_t, atol=1e-10)
+        prod_state = np.kron(prod_state, t_ket)
+
+    # 5. Each of the 24 one-qubit Cliffords leaves M₂ unchanged on a fixed non-stabilizer state
+    cliffords = one_qubit_cliffords()
+    for c in cliffords:
+        c_state = c @ t_ket
+        assert np.isclose(stabilizer_renyi_entropy(c_state), expected_m2_t, atol=1e-12)
+
+
+
 
 
