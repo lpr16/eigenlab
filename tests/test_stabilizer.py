@@ -252,4 +252,44 @@ def test_z2_taper_one_clifford_per_symmetry():
         assert np.allclose(mat_tapered, expected_mat, atol=1e-12)
 
 
+def test_h2_on_one_qubit():
+    # Phase 5: H2 on one qubit
+    from eigenlab.hamiltonian import spectrum, taper, z2_taper
+    from eigenlab.molecular import h2_sto3g_hamiltonian
+    from eigenlab.stabilizer import z2_symmetries
+
+    for R in [1.0, 1.401, 2.0, 3.0]:
+        h_jw = h2_sto3g_hamiltonian(R, mapping="jordan_wigner")
+        spec_full = spectrum(h_jw)
+        gens = z2_symmetries(h_jw)
+        assert len(gens) == 3
+
+        # The eight one-qubit tapered spectra, over all sign choices
+        tapered_specs = []
+        for signs in itertools.product([1, -1], repeat=3):
+            h1 = z2_taper(h_jw, signs=signs, generators=gens)
+            assert h1.qubits == 1
+            sp1 = spectrum(h1)
+            assert len(sp1) == 2
+            tapered_specs.append(sp1)
+
+        # Together equal the sixteen-level four-qubit spectrum to 1e-10, multiplicities included
+        combined = np.sort(np.concatenate(tapered_specs))
+        assert np.allclose(combined, spec_full, atol=1e-10)
+
+        # The lowest tapered level is the four-qubit ground energy to 1e-10
+        lowest = min(min(sp) for sp in tapered_specs)
+        assert np.isclose(lowest, spec_full[0], atol=1e-10)
+
+        # At R = 1.401 it is the cited −1.13727 to 1e-5
+        if R == 1.401:
+            assert np.isclose(lowest, -1.13727, atol=1e-5)
+
+        # Equals the ground energy of the fifth haul's two-qubit parity taper to 1e-10
+        h_parity = h2_sto3g_hamiltonian(R, mapping="parity")
+        h_par_taper = taper(h_parity, [1, 3], [+1, +1])
+        assert np.isclose(lowest, spectrum(h_par_taper)[0], atol=1e-10)
+
+
+
 
