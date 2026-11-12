@@ -107,3 +107,38 @@ def gf2_nullspace(M: np.ndarray | list) -> np.ndarray:
                 null_basis[idx, p] = 1
     return null_basis
 
+
+def z2_symmetries(hamiltonian: Hamiltonian) -> list[str]:
+    """Find independent Z_2 symmetry generators (made of I and Z) of a Hamiltonian.
+
+    A Z-type string with bit vector a commutes with a term with x-part x_t
+    iff a · x_t = 0 (mod 2). The symmetries are therefore the GF(2) nullspace
+    of the matrix formed by the terms' x-parts. The identity is excluded.
+    """
+    from eigenlab.hamiltonian import Hamiltonian
+
+    n = hamiltonian.qubits
+    if n == 0:
+        return []
+    terms = [(c, l) for c, l in hamiltonian.terms if abs(c) > 1e-12]
+    if not terms:
+        return ["I" * i + "Z" + "I" * (n - 1 - i) for i in range(n)]
+
+    x_rows = [pauli_to_bits(lbl)[0] for _, lbl in terms]
+    mx = np.array(x_rows, dtype=np.uint8)
+    ns = gf2_nullspace(mx)
+    if ns.size == 0 or len(ns) == 0:
+        return []
+
+    rref, _ = _gf2_rref(ns)
+    nonzero_rows = [row for row in rref if np.any(row)]
+
+    zero_x = np.zeros(n, dtype=np.uint8)
+    labels = [
+        bits_to_pauli(zero_x, row)
+        for row in nonzero_rows
+        if bits_to_pauli(zero_x, row) != "I" * n
+    ]
+    return labels
+
+

@@ -113,3 +113,57 @@ def test_linear_algebra_over_gf2():
     assert np.all((m_diff @ ns_diff[0]) % 2 == 0)
     assert gf2_rank(ns_diff) == 1
 
+
+def test_z2_symmetries():
+    # Phase 3: The Z2 symmetries of a Hamiltonian
+    # Derivation:
+    # A Z-type Pauli string has bit representation (x=0, z=a).
+    # A Hamiltonian term has bit representation (x=x_t, z=z_t).
+    # The symplectic inner product between them is:
+    #   x_1 · z_2 + z_1 · x_2 (mod 2) = 0 · z_t + a · x_t (mod 2) = a · x_t (mod 2).
+    # Therefore, the Z-type Pauli string commutes with the term if and only if
+    #   a · x_t = 0 (mod 2).
+    # For the string to commute with every term in H, a must satisfy M_X a = 0 (mod 2),
+    # where M_X is the matrix whose rows are the x-parts x_t of each term.
+    # Hence, the independent Z2 symmetries are the basis of the GF(2) nullspace of M_X.
+    from eigenlab.codes import stabilizer_group
+    from eigenlab.molecular import h2_sto3g_hamiltonian
+    from eigenlab.pauli import pauli
+    from eigenlab.stabilizer import z2_symmetries
+
+    h2 = h2_sto3g_hamiltonian(1.401)
+    gens = z2_symmetries(h2)
+
+    # Jordan–Wigner H2 at R = 1.401 has exactly 3 generators
+    # (Bravyi, Gambetta, Mezzacapo and Temme, arXiv:1701.08213 taper H2 to one qubit)
+    assert len(gens) == 3
+    assert "IIII" not in gens
+
+    # Every returned label consists only of I and Z
+    for g in gens:
+        assert set(g).issubset({"I", "Z"})
+
+    # Every returned label commutes with every term (pauli_comm) and with H.to_matrix() to 1e-12
+    h_mat = h2.to_matrix()
+    for g in gens:
+        g_mat = pauli(g)
+        # Matrix commutator [G, H] = 0
+        comm_mat = g_mat @ h_mat - h_mat @ g_mat
+        assert np.allclose(comm_mat, 0.0, atol=1e-12)
+
+        for coeff, term_lbl in h2.terms:
+            if abs(coeff) > 1e-12:
+                comm_phase, _ = pauli_comm(g, term_lbl)
+                assert comm_phase == 0.0
+
+    # The group they generate (stabilizer_group) contains ZIZI, IZIZ and ZZII.
+    # These are:
+    # - ZIZI: parity of N_↑ = n0 + n2
+    # - IZIZ: parity of N_↓ = n1 + n3
+    # - ZZII: parity of the σ_g occupation n0 + n1, which the double excitation σ_g² ↔ σ_u² changes by 2.
+    group = stabilizer_group(gens)
+    assert "ZIZI" in group
+    assert "IZIZ" in group
+    assert "ZZII" in group
+
+

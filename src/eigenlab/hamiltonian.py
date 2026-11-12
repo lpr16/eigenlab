@@ -460,6 +460,14 @@ def taper(
     return Hamiltonian(new_terms).simplify()
 
 
+def z2_symmetries(hamiltonian: Hamiltonian) -> list[str]:
+    """Find independent Z_2 symmetry generators (made of I and Z) of a Hamiltonian."""
+    from eigenlab.stabilizer import z2_symmetries as _z2_symmetries
+
+    return _z2_symmetries(hamiltonian)
+
+
+
 def translation(n: int) -> np.ndarray:
     """Lattice translation permutation matrix T |x_0 x_1 ... x_{n-1}⟩ = |x_{n-1} x_0 ... x_{n-2}⟩."""
     if not 1 <= n <= 8:
