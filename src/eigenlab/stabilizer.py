@@ -18,6 +18,15 @@ _BITS_TO_CHAR: dict[tuple[int, int], str] = {
     (1, 1): "Y",
 }
 
+_PHASE_EXP = np.zeros((2, 2, 2, 2), dtype=int)
+_PHASE_EXP[1, 0, 1, 1] = 1
+_PHASE_EXP[1, 0, 0, 1] = 3
+_PHASE_EXP[1, 1, 1, 0] = 3
+_PHASE_EXP[1, 1, 0, 1] = 1
+_PHASE_EXP[0, 1, 1, 0] = 1
+_PHASE_EXP[0, 1, 1, 1] = 3
+
+
 
 def pauli_to_bits(label: str) -> tuple[np.ndarray, np.ndarray]:
     """Convert a Pauli string label to bit vectors (x, z) as uint8 arrays."""
@@ -253,6 +262,72 @@ class Tableau:
             lbl = bits_to_pauli(self.x[i], self.z[i])
             res.append(SignedPauli(sign, lbl))
         return res
+
+    def _rowsum(self, h: int, i: int) -> None:
+        """Set row h := row h * row i."""
+        k_sum = int(np.sum(_PHASE_EXP[self.x[h], self.z[h], self.x[i], self.z[i]]))
+        m = (k_sum // 2) % 2
+        self.r[h] ^= self.r[i] ^ m
+        self.x[h] ^= self.x[i]
+        self.z[h] ^= self.z[i]
+
+    def measure(self, q: int, outcome: int | None = None) -> tuple[int, float]:
+        """Measure qubit q in the computational (Z) basis without sampling.
+
+        Returns (outcome, probability).
+        - If the outcome is deterministic, the probability is 1.0. Passing the opposite outcome raises.
+        - If it is random, probability is 0.5, caller must pass outcome in {0, 1}, and leaving it None raises.
+        """
+        if not 0 <= q < self.n:
+            raise ValueError(f"qubit {q} out of range for {self.n} qubits")
+
+        p_candidates = [p for p in range(self.n, 2 * self.n) if self.x[p, q] == 1]
+        if p_candidates:
+            # Case 1: random outcome
+            if outcome is None:
+                raise ValueError("outcome must be specified for random measurement")
+            if outcome not in (0, 1):
+                raise ValueError(f"outcome must be 0 or 1, got {outcome}")
+            p = p_candidates[0]
+            for i in range(2 * self.n):
+                if i != p and self.x[i, q] == 1:
+                    self._rowsum(i, p)
+            self.x[p - self.n] = self.x[p].copy()
+            self.z[p - self.n] = self.z[p].copy()
+            self.r[p - self.n] = self.r[p]
+            self.x[p, :] = 0
+            self.z[p, :] = 0
+            self.z[p, q] = 1
+            self.r[p] = outcome
+            return outcome, 0.5
+        else:
+            # Case 2: deterministic outcome
+            scratch_x = np.zeros(self.n, dtype=np.uint8)
+            scratch_z = np.zeros(self.n, dtype=np.uint8)
+            scratch_r = 0
+            for i in range(self.n):
+                if self.x[i, q] == 1:
+                    k_sum = int(
+                        np.sum(
+                            _PHASE_EXP[
+                                scratch_x,
+                                scratch_z,
+                                self.x[self.n + i],
+                                self.z[self.n + i],
+                            ]
+                        )
+                    )
+                    m = (k_sum // 2) % 2
+                    scratch_r ^= int(self.r[self.n + i]) ^ m
+                    scratch_x ^= self.x[self.n + i]
+                    scratch_z ^= self.z[self.n + i]
+            det_outcome = scratch_r
+            if outcome is not None and outcome != det_outcome:
+                raise ValueError(
+                    f"passed outcome {outcome} contradicts deterministic outcome {det_outcome}"
+                )
+            return det_outcome, 1.0
+
 
 
 

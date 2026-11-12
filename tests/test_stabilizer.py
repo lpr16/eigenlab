@@ -453,6 +453,137 @@ def test_tableau():
         run_circuit_test(c[0], c[1])
 
 
+def test_tableau_measurement():
+    # Phase 8: Measurement without sampling
+    from eigenlab.pauli import pauli, pauli_probabilities, post_measure
+    from eigenlab.stabilizer import Tableau
+    from eigenlab.states import basis
+
+    circuits = [
+        (2, [("h", 0), ("cnot", 0, 1), ("s", 1)]),
+        (3, [("h", 0), ("cnot", 0, 1), ("cnot", 1, 2), ("s", 0), ("h", 2)]),
+        (
+            4,
+            [
+                ("h", 0),
+                ("h", 1),
+                ("h", 2),
+                ("h", 3),
+                ("cnot", 0, 1),
+                ("cnot", 1, 2),
+                ("cnot", 2, 3),
+                ("s", 1),
+                ("s", 3),
+            ],
+        ),
+        (
+            5,
+            [
+                ("h", 0),
+                ("cnot", 0, 1),
+                ("s", 1),
+                ("cnot", 1, 2),
+                ("h", 3),
+                ("cnot", 3, 4),
+                ("cnot", 2, 4),
+                ("s", 4),
+            ],
+        ),
+        (
+            6,
+            [
+                ("h", 0),
+                ("cnot", 0, 1),
+                ("cnot", 1, 2),
+                ("cnot", 2, 3),
+                ("cnot", 3, 4),
+                ("cnot", 4, 5),
+                ("s", 0),
+                ("h", 3),
+                ("s", 5),
+            ],
+        ),
+        (
+            4,
+            [
+                ("h", 0),
+                ("s", 0),
+                ("cnot", 0, 2),
+                ("h", 1),
+                ("cnot", 1, 3),
+                ("s", 2),
+                ("cnot", 2, 3),
+                ("h", 3),
+            ],
+        ),
+    ]
+
+    H_mat = np.array([[1, 1], [1, -1]], dtype=complex) / np.sqrt(2.0)
+    S_mat = np.array([[1, 0], [0, 1j]], dtype=complex)
+    X_mat = np.array([[0, 1], [1, 0]], dtype=complex)
+    P0 = np.array([[1, 0], [0, 0]], dtype=complex)
+    P1 = np.array([[0, 0], [0, 1]], dtype=complex)
+
+    for n, gates in circuits:
+        state = basis(0, n)
+        tab = Tableau(n)
+        for g in gates:
+            if g[0] == "h":
+                op = 1
+                for i in range(n):
+                    u = H_mat if i == g[1] else np.eye(2, dtype=complex)
+                    op = np.kron(op, u) if i > 0 else u
+                state = op @ state
+                tab.h(g[1])
+            elif g[0] == "s":
+                op = 1
+                for i in range(n):
+                    u = S_mat if i == g[1] else np.eye(2, dtype=complex)
+                    op = np.kron(op, u) if i > 0 else u
+                state = op @ state
+                tab.s(g[1])
+            elif g[0] == "cnot":
+                c, t = g[1], g[2]
+                m0 = 1
+                m1 = 1
+                for i in range(n):
+                    op0 = P0 if i == c else np.eye(2, dtype=complex)
+                    op1 = P1 if i == c else (X_mat if i == t else np.eye(2, dtype=complex))
+                    m0 = np.kron(m0, op0) if i > 0 else op0
+                    m1 = np.kron(m1, op1) if i > 0 else op1
+                state = (m0 + m1) @ state
+                tab.cnot(c, t)
+
+        for q in range(n):
+            z_label = "I" * q + "Z" + "I" * (n - 1 - q)
+            p_plus, p_minus = pauli_probabilities(state, z_label)
+            is_random = not (np.isclose(p_plus, 1.0) or np.isclose(p_minus, 1.0))
+
+            if is_random:
+                # Random measurement with outcome=None raises
+                with pytest.raises(ValueError, match="outcome must be specified"):
+                    tab.copy().measure(q, outcome=None)
+
+            for outcome, prob_expected, pm_sign in [(0, p_plus, +1), (1, p_minus, -1)]:
+                if prob_expected > 1e-12:
+                    tab_copy = tab.copy()
+                    out, prob = tab_copy.measure(
+                        q, outcome=outcome if is_random else None
+                    )
+                    assert out == outcome
+                    assert np.isclose(prob, prob_expected)
+                    # Check post-measurement state against post_measure
+                    post_state = post_measure(state, z_label, pm_sign)
+                    for p in tab_copy.stabilizers():
+                        mat = pauli(p.label)
+                        assert np.allclose(mat @ post_state, p.sign * post_state, atol=1e-12)
+                else:
+                    # Passing opposite outcome to deterministic raises
+                    with pytest.raises(ValueError):
+                        tab.copy().measure(q, outcome=outcome)
+
+
+
 
 
 
