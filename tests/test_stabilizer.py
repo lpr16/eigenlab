@@ -712,6 +712,80 @@ def test_sixty_four_qubits():
         assert np.isclose(prob_k, 1.0)
 
 
+def test_toric_code_larger_tori():
+    # Phase 11: The toric code on larger tori
+    from eigenlab.codes import toric_code_stabilizers, weight_k_paulis
+    from eigenlab.stabilizer import gf2_rank, pauli_to_bits
+
+    # At L = 2 the labels equal toric_code_stabilizers()
+    s2, p2 = toric_code_stabilizers(2)
+    s_default, p_default = toric_code_stabilizers()
+    assert s2 == s_default
+    assert p2 == p_default
+
+    for L in [2, 3, 4, 5]:
+        num_qubits = 2 * L * L
+        stars, plaquettes = toric_code_stabilizers(L)
+        gens = stars + plaquettes
+        assert len(gens) == 2 * L * L
+
+        # Build GF(2) bit matrix for generators
+        rows = [np.concatenate(pauli_to_bits(g)) for g in gens]
+        gen_mat = np.array(rows, dtype=np.uint8)
+
+        # 1. The 2L² generators have GF(2) rank 2L² − 2 (leaving 2 logical qubits)
+        rank = gf2_rank(gen_mat)
+        assert rank == 2 * L * L - 2
+
+        # 2. Straight loop of Z on h(x, 0) for every x
+        z_edges = {2 * (L * 0 + x) for x in range(L)}
+        z_loop = "".join("Z" if i in z_edges else "I" for i in range(num_qubits))
+        assert sum(c != "I" for c in z_loop) == L
+
+        x_loop, z_loop_bits = pauli_to_bits(z_loop)
+        # Commutes with every generator
+        gen_x = gen_mat[:, :num_qubits]
+        gen_z = gen_mat[:, num_qubits:]
+        inners = (gen_x @ z_loop_bits + gen_z @ x_loop) % 2
+        assert np.all(inners == 0)
+
+        # Appending it raises the rank, so it is not in the group
+        loop_row = np.concatenate([x_loop, z_loop_bits])
+        rank_with_loop = gf2_rank(np.vstack([gen_mat, loop_row]))
+        assert rank_with_loop == rank + 1
+
+    # 3. At L = 3, distance is 3 checked via bits (54 + 1377 labels)
+    L3 = 3
+    num_qubits_3 = 2 * L3 * L3  # 18
+    stars_3, plaquettes_3 = toric_code_stabilizers(L3)
+    gens_3 = stars_3 + plaquettes_3
+    rows_3 = [np.concatenate(pauli_to_bits(g)) for g in gens_3]
+    gen_mat_3 = np.array(rows_3, dtype=np.uint8)
+    gen_rank_3 = gf2_rank(gen_mat_3)  # 16
+
+    gen_x_3 = gen_mat_3[:, :num_qubits_3]
+    gen_z_3 = gen_mat_3[:, num_qubits_3:]
+
+    count_w1 = 0
+    count_w2 = 0
+    for k in [1, 2]:
+        for lbl in weight_k_paulis(num_qubits_3, k):
+            if k == 1:
+                count_w1 += 1
+            else:
+                count_w2 += 1
+            x, z = pauli_to_bits(lbl)
+            inners = (gen_x_3 @ z + gen_z_3 @ x) % 2
+            if np.all(inners == 0):
+                # Commutes with all generators; check if in group
+                row = np.concatenate([x, z])
+                assert gf2_rank(np.vstack([gen_mat_3, row])) == gen_rank_3
+
+    assert count_w1 == 54
+    assert count_w2 == 1377
+
+
+
 
 
 

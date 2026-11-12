@@ -311,25 +311,31 @@ def steane_logical_states() -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     return zero_L, one_L, plus_L
 
 
-def _toric_h(x: int, y: int) -> int:
-    return 2 * (2 * (y % 2) + (x % 2))
+def _toric_h(x: int, y: int, L: int = 2) -> int:
+    return 2 * (L * (y % L) + (x % L))
 
 
-def _toric_v(x: int, y: int) -> int:
-    return 2 * (2 * (y % 2) + (x % 2)) + 1
+def _toric_v(x: int, y: int, L: int = 2) -> int:
+    return 2 * (L * (y % L) + (x % L)) + 1
 
 
-def toric_code_stabilizers() -> tuple[tuple[str, ...], tuple[str, ...]]:
-    """Return ``(stars, plaquettes)`` for the 2x2 toric code in order ``(x, y) = (0,0), (0,1), (1,0), (1,1)``."""
-    coords = ((0, 0), (0, 1), (1, 0), (1, 1))
+def toric_code_stabilizers(L: int = 2) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """Return ``(stars, plaquettes)`` for the LxL toric code on 2*L^2 qubits."""
+    h = lambda x, y: _toric_h(x, y, L)
+    v = lambda x, y: _toric_v(x, y, L)
+
+
+    num_qubits = 2 * L * L
+    coords = [(x, y) for x in range(L) for y in range(L)]
     stars: list[str] = []
     plaquettes: list[str] = []
     for x, y in coords:
-        star_edges = {_toric_h(x, y), _toric_h(x - 1, y), _toric_v(x, y), _toric_v(x, y - 1)}
-        stars.append("".join("X" if i in star_edges else "I" for i in range(8)))
-        plaq_edges = {_toric_h(x, y), _toric_h(x, y + 1), _toric_v(x, y), _toric_v(x + 1, y)}
-        plaquettes.append("".join("Z" if i in plaq_edges else "I" for i in range(8)))
+        star_edges = {h(x, y), h(x - 1, y), v(x, y), v(x, y - 1)}
+        stars.append("".join("X" if i in star_edges else "I" for i in range(num_qubits)))
+        plaq_edges = {h(x, y), h(x, y + 1), v(x, y), v(x + 1, y)}
+        plaquettes.append("".join("Z" if i in plaq_edges else "I" for i in range(num_qubits)))
     return tuple(stars), tuple(plaquettes)
+
 
 
 TORIC_STAR_STABILIZERS, TORIC_PLAQUETTE_STABILIZERS = toric_code_stabilizers()
