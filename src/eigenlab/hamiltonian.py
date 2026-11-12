@@ -14,7 +14,10 @@ from eigenlab.pauli import apply_pauli, pauli
 class Hamiltonian:
     """Hamiltonian represented as a list of (coefficient, pauli_string) terms."""
 
+    __array_ufunc__ = None
+
     terms: list[tuple[complex, str]]
+
 
     def __init__(self, terms: Sequence[tuple[complex | float, str]]):
         object.__setattr__(self, "terms", [(complex(c), str(l)) for c, l in terms])
@@ -44,6 +47,18 @@ class Hamiltonian:
 
     def __rmul__(self, scalar: complex | float) -> Hamiltonian:
         return Hamiltonian([(c * complex(scalar), l) for c, l in self.terms])
+
+    def __rmatmul__(self, other: np.ndarray) -> np.ndarray:
+        return other @ self.to_matrix()
+
+    def __iter__(self):
+        return iter(self.terms)
+
+    def __len__(self) -> int:
+        return len(self.terms)
+
+    def __getitem__(self, idx: int):
+        return self.terms[idx]
 
     def __matmul__(self, other: Hamiltonian | np.ndarray) -> Hamiltonian | np.ndarray:
         if isinstance(other, np.ndarray):
