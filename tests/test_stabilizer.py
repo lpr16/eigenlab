@@ -291,5 +291,42 @@ def test_h2_on_one_qubit():
         assert np.isclose(lowest, spectrum(h_par_taper)[0], atol=1e-10)
 
 
+def test_h4_tapered():
+    # Phase 6: H4, tapered
+    from eigenlab.codes import stabilizer_group
+    from eigenlab.hamiltonian import spectrum, z2_taper
+    from eigenlab.molecular import h4_sto3g_hamiltonian
+    from eigenlab.stabilizer import z2_symmetries
+
+    h4 = h4_sto3g_hamiltonian(1.401, 2.0, mapping="jordan_wigner", orbitals="lowdin")
+    assert h4.qubits == 8
+
+    gens = z2_symmetries(h4)
+    # Finds at least 2 generators
+    assert len(gens) >= 2
+
+    group = stabilizer_group(gens)
+    # The parities of N_↑ (Z on the even qubits) and of N_↓ (Z on the odd qubits) are always there
+    n_up_parity = "".join("Z" if i % 2 == 0 else "I" for i in range(8))
+    n_dn_parity = "".join("Z" if i % 2 == 1 else "I" for i in range(8))
+    assert n_up_parity in group
+    assert n_dn_parity in group
+
+    # Taper all of them
+    tapered_specs = []
+    for signs in itertools.product([1, -1], repeat=len(gens)):
+        h_tapered = z2_taper(h4, signs=signs, generators=gens)
+        assert h_tapered.qubits == 8 - len(gens)
+        tapered_specs.append(spectrum(h_tapered))
+
+    # The union of the tapered spectra equals the 256-level spectrum to 1e-8, multiplicities included
+    spec_full = spectrum(h4)
+    assert len(spec_full) == 256
+    combined = np.sort(np.concatenate(tapered_specs))
+    assert len(combined) == 256
+    assert np.allclose(combined, spec_full, atol=1e-8)
+
+
+
 
 
