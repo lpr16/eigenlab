@@ -149,4 +149,111 @@ def z2_taper(hamiltonian, signs, generators=None):
     return _z2_taper(hamiltonian, signs, generators)
 
 
+class SignedPauli(tuple):
+    """A signed Pauli operator: (sign, label)."""
+
+    def __new__(cls, sign: int, label: str):
+        return super().__new__(cls, (int(sign), str(label)))
+
+    @property
+    def sign(self) -> int:
+        return self[0]
+
+    @property
+    def label(self) -> str:
+        return self[1]
+
+    def __str__(self) -> str:
+        s = "+" if self.sign > 0 else "-"
+        return f"{s}{self.label}"
+
+    def __repr__(self) -> str:
+        s = "+" if self.sign > 0 else "-"
+        return f"SignedPauli('{s}{self.label}')"
+
+    def __eq__(self, other: object) -> bool:
+        if (
+            isinstance(other, tuple)
+            and len(other) == 2
+            and isinstance(other[0], int)
+            and isinstance(other[1], str)
+        ):
+            return self[0] == other[0] and self[1] == other[1]
+        if isinstance(other, str):
+            return str(self) == other
+        return False
+
+
+class Tableau:
+    """Stabilizer tableau for n qubits following Aaronson and Gottesman (2004)."""
+
+    def __init__(self, n: int):
+        if n < 1:
+            raise ValueError("n must be at least 1")
+        self.n = n
+        # Rows 0 ... n-1: destabilizers
+        # Rows n ... 2n-1: stabilizers
+        self.x = np.zeros((2 * n, n), dtype=np.uint8)
+        self.z = np.zeros((2 * n, n), dtype=np.uint8)
+        self.r = np.zeros(2 * n, dtype=np.uint8)
+        for i in range(n):
+            self.x[i, i] = 1
+            self.z[n + i, i] = 1
+
+    def copy(self) -> Tableau:
+        other = Tableau(self.n)
+        other.x = self.x.copy()
+        other.z = self.z.copy()
+        other.r = self.r.copy()
+        return other
+
+    def h(self, q: int) -> Tableau:
+        """Apply Hadamard gate on qubit q."""
+        if not 0 <= q < self.n:
+            raise ValueError(f"qubit {q} out of range for {self.n} qubits")
+        self.r ^= self.x[:, q] & self.z[:, q]
+        self.x[:, q], self.z[:, q] = self.z[:, q].copy(), self.x[:, q].copy()
+        return self
+
+    def s(self, q: int) -> Tableau:
+        """Apply Phase gate S on qubit q."""
+        if not 0 <= q < self.n:
+            raise ValueError(f"qubit {q} out of range for {self.n} qubits")
+        self.r ^= self.x[:, q] & self.z[:, q]
+        self.z[:, q] ^= self.x[:, q]
+        return self
+
+    def cnot(self, c: int, t: int) -> Tableau:
+        """Apply CNOT gate with control c and target t."""
+        if not (0 <= c < self.n and 0 <= t < self.n):
+            raise ValueError(f"qubits ({c}, {t}) out of range for {self.n} qubits")
+        if c == t:
+            raise ValueError("control and target must be distinct")
+        self.r ^= self.x[:, c] & self.z[:, t] & (self.x[:, t] ^ self.z[:, c] ^ 1)
+        self.x[:, t] ^= self.x[:, c]
+        self.z[:, c] ^= self.z[:, t]
+        return self
+
+    cx = cnot
+
+    def stabilizers(self) -> list[SignedPauli]:
+        """Return the n stabilizer generators as signed labels."""
+        res = []
+        for i in range(self.n, 2 * self.n):
+            sign = -1 if self.r[i] else +1
+            lbl = bits_to_pauli(self.x[i], self.z[i])
+            res.append(SignedPauli(sign, lbl))
+        return res
+
+    def destabilizers(self) -> list[SignedPauli]:
+        """Return the n destabilizer generators as signed labels."""
+        res = []
+        for i in range(self.n):
+            sign = -1 if self.r[i] else +1
+            lbl = bits_to_pauli(self.x[i], self.z[i])
+            res.append(SignedPauli(sign, lbl))
+        return res
+
+
+
 

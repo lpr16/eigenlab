@@ -327,6 +327,133 @@ def test_h4_tapered():
     assert np.allclose(combined, spec_full, atol=1e-8)
 
 
+def test_tableau():
+    # Phase 7: The tableau
+    from eigenlab.pauli import pauli, pauli_comm
+    from eigenlab.stabilizer import Tableau
+    from eigenlab.states import basis
+
+    def run_circuit_test(n, gates):
+        dim = 1 << n
+        state = basis(0, n)
+        H_mat = np.array([[1, 1], [1, -1]], dtype=complex) / np.sqrt(2.0)
+        S_mat = np.array([[1, 0], [0, 1j]], dtype=complex)
+        X_mat = np.array([[0, 1], [1, 0]], dtype=complex)
+        P0 = np.array([[1, 0], [0, 0]], dtype=complex)
+        P1 = np.array([[0, 0], [0, 1]], dtype=complex)
+
+        def embed_1q(u, q):
+            m = 1
+            for i in range(n):
+                op = u if i == q else np.eye(2, dtype=complex)
+                m = np.kron(m, op) if i > 0 else op
+            return m
+
+        def embed_cnot(c, t):
+            m0 = 1
+            m1 = 1
+            for i in range(n):
+                op0 = P0 if i == c else np.eye(2, dtype=complex)
+                op1 = P1 if i == c else (X_mat if i == t else np.eye(2, dtype=complex))
+                m0 = np.kron(m0, op0) if i > 0 else op0
+                m1 = np.kron(m1, op1) if i > 0 else op1
+            return m0 + m1
+
+        tab = Tableau(n)
+        for g in gates:
+            if g[0] == "h":
+                state = embed_1q(H_mat, g[1]) @ state
+                tab.h(g[1])
+            elif g[0] == "s":
+                state = embed_1q(S_mat, g[1]) @ state
+                tab.s(g[1])
+            elif g[0] == "cnot":
+                state = embed_cnot(g[1], g[2]) @ state
+                tab.cnot(g[1], g[2])
+
+        stabs = tab.stabilizers()
+        destabs = tab.destabilizers()
+        assert len(stabs) == n
+        assert len(destabs) == n
+
+        # Checks P|ψ⟩ = sign · |ψ⟩ for every returned stabilizer P
+        for p in stabs:
+            mat = pauli(p.label)
+            assert np.allclose(mat @ state, p.sign * state, atol=1e-12)
+
+        # Destabilizer i anticommutes with stabilizer i and commutes with every other stabilizer
+        for i in range(n):
+            for j in range(n):
+                phase, _ = pauli_comm(destabs[i].label, stabs[j].label)
+                is_comm = phase == 0.0
+                if i == j:
+                    assert not is_comm, f"destab {i} must anticommute with stab {j}"
+                else:
+                    assert is_comm, f"destab {i} must commute with stab {j}"
+
+    # Six fixed circuits on n = 2 … 6
+    c1 = (2, [("h", 0), ("cnot", 0, 1), ("s", 1)])
+    c2 = (3, [("h", 0), ("cnot", 0, 1), ("cnot", 1, 2), ("s", 0), ("h", 2)])
+    c3 = (
+        4,
+        [
+            ("h", 0),
+            ("h", 1),
+            ("h", 2),
+            ("h", 3),
+            ("cnot", 0, 1),
+            ("cnot", 1, 2),
+            ("cnot", 2, 3),
+            ("s", 1),
+            ("s", 3),
+        ],
+    )
+    c4 = (
+        5,
+        [
+            ("h", 0),
+            ("cnot", 0, 1),
+            ("s", 1),
+            ("cnot", 1, 2),
+            ("h", 3),
+            ("cnot", 3, 4),
+            ("cnot", 2, 4),
+            ("s", 4),
+        ],
+    )
+    c5 = (
+        6,
+        [
+            ("h", 0),
+            ("cnot", 0, 1),
+            ("cnot", 1, 2),
+            ("cnot", 2, 3),
+            ("cnot", 3, 4),
+            ("cnot", 4, 5),
+            ("s", 0),
+            ("h", 3),
+            ("s", 5),
+        ],
+    )
+    c6 = (
+        4,
+        [
+            ("h", 0),
+            ("s", 0),
+            ("cnot", 0, 2),
+            ("h", 1),
+            ("cnot", 1, 3),
+            ("s", 2),
+            ("cnot", 2, 3),
+            ("h", 3),
+        ],
+    )
+
+    for c in [c1, c2, c3, c4, c5, c6]:
+        run_circuit_test(c[0], c[1])
+
+
+
 
 
 
