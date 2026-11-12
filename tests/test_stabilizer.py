@@ -666,6 +666,53 @@ def test_tableau_expectation():
             assert np.isclose(exp_val, exp_true, atol=1e-12)
 
 
+def test_sixty_four_qubits():
+    # Phase 10: Sixty-four qubits
+    # A product of X's and Y's on GHZ has expectation (-1)^{#Y/2} when #Y is even:
+    # On |0...0⟩ and |1...1⟩:
+    # Each X flips 0 <-> 1.
+    # Each Y flips 0 <-> 1 with phase +i on |0⟩ and -i on |1⟩.
+    # With #Y even, the product of phases is (i)^{#Y} on |0...0⟩ and (-i)^{#Y} on |1...1⟩.
+    # Since (i)^{#Y} = (-1)^{#Y/2} and (-i)^{#Y} = (-1)^{#Y/2}, both basis components
+    # acquire the identical phase (-1)^{#Y/2}, giving expectation (-1)^{#Y/2}.
+    # No 64-qubit matrix is built; Tableau operates entirely on bit matrices.
+    from eigenlab.stabilizer import Tableau
+
+    n = 64
+    tab = Tableau(n)
+    tab.h(0)
+    for k in range(1, n):
+        tab.cnot(0, k)
+
+    # 1. ⟨Z₀ Z_k⟩ = 1 for every k
+    for k in range(1, n):
+        lbl = ["I"] * n
+        lbl[0] = "Z"
+        lbl[k] = "Z"
+        assert tab.expectation("".join(lbl)) == 1
+
+    # 2. ⟨X^{⊗64}⟩ = 1
+    assert tab.expectation("X" * n) == 1
+
+    # 3. ⟨Y Y X^{⊗62}⟩ = −1
+    assert tab.expectation("YY" + "X" * 62) == -1
+
+    # 4. ⟨Z₀⟩ = 0
+    assert tab.expectation("Z" + "I" * 63) == 0
+
+    # 5. Measure qubit 0 with outcome 1 (prob = 1/2)
+    out0, prob0 = tab.measure(0, outcome=1)
+    assert out0 == 1
+    assert np.isclose(prob0, 0.5)
+
+    # 6. Every other qubit's Z measurement is then deterministic with outcome 1
+    for k in range(1, n):
+        out_k, prob_k = tab.measure(k)
+        assert out_k == 1
+        assert np.isclose(prob_k, 1.0)
+
+
+
 
 
 
