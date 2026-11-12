@@ -168,3 +168,59 @@ def test_twirling():
             assert np.isclose(np.mean(overlaps_p1), 0.5, atol=1e-12)
 
 
+def test_randomized_benchmarking_exact_average():
+    # Phase 16: Benchmarking, averaged exactly
+    # Derivation:
+    # A standard randomized benchmarking sequence of length m applies m Clifford gates C_1, ..., C_m,
+    # each interleaved with a noise channel Λ, followed by the noiseless inversion gate C_{inv} = (C_m ... C_1)†.
+    # Defining prefix unitaries D_i = C_i ... C_1 (with D_0 = I), the noise operator at step i,
+    # conjugated back into the reference frame, becomes:
+    #   D_i† Λ D_i.
+    # Because each C_i is independently and uniformly distributed over the Clifford group,
+    # each prefix D_i is also independent and uniformly distributed over the Clifford group.
+    # Therefore, the expectation over the sequence factors into the independent Clifford twirls
+    # of each noise channel:
+    #   E[D_i† Λ D_i] = Twirl(Λ).
+    # In Phase 15 we verified that the twirl of amplitude damping over the Clifford 2-design is a depolarizing channel:
+    #   Twirl(Λ)(ρ) = λ ρ + (1 - λ) I/2,
+    # with parameter λ = (4 F_e - 1)/3, where F_e = (1 + √(1 - p))² / 4 is the entanglement fidelity.
+    # Composing m independent identical depolarizing channels gives:
+    #   Twirl(Λ)^m(ρ) = λ^m ρ + (1 - λ^m) I/2.
+    # Starting from the state ρ_0 = |0⟩⟨0| and measuring the survival probability of |0⟩ gives:
+    #   F(m) = ⟨0| Twirl(Λ)^m(|0⟩⟨0|) |0⟩
+    #        = λ^m ⟨0|0⟩⟨0|0⟩ + (1 - λ^m) ⟨0| I/2 |0⟩
+    #        = λ^m + (1 - λ^m)/2 = (1 + λ^m)/2.
+    import itertools
+    from eigenlab.channels import amplitude_damping
+    from eigenlab.clifford import one_qubit_cliffords
+    from eigenlab.states import ZERO, density
+
+    cliffords = one_qubit_cliffords()
+    assert len(cliffords) == 24
+    rho0 = density(ZERO)
+
+    for p in [0.1, 0.4]:
+        fe = (1.0 + np.sqrt(1.0 - p)) ** 2 / 4.0
+        lam = (4.0 * fe - 1.0) / 3.0
+        noise = lambda rho: amplitude_damping(rho, p)
+
+        for m in [1, 2, 3]:
+            total_f = 0.0
+            count = 0
+            for seq in itertools.product(cliffords, repeat=m):
+                count += 1
+                rho = rho0
+                u_net = np.eye(2, dtype=complex)
+                for c in seq:
+                    rho = noise(c @ rho @ c.conj().T)
+                    u_net = c @ u_net
+                rho_final = u_net.conj().T @ rho @ u_net
+                total_f += rho_final[0, 0].real
+
+            avg_f = total_f / count
+            expected_f = (1.0 + lam**m) / 2.0
+            assert count == 24**m
+            assert np.isclose(avg_f, expected_f, atol=1e-12)
+
+
+
