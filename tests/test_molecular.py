@@ -743,6 +743,42 @@ def test_h2_631g():
     assert e_rhf_ci < -1.13727
 
 
+def test_h2_631g_tapered():
+    # Phase 36: 6-31G H2 tapered
+    # In the RHF orbitals every canonical orbital is gerade or ungerade, so
+    # z2_symmetries finds at least three generators: the parities of N_up,
+    # N_down, and the ungerade occupation. Tapering them leaves each sector
+    # on at most five qubits. The union of the tapered spectra is the full
+    # 256-level spectrum, and the N = 2 ground energy sits in exactly one sector.
+    import itertools
+
+    from eigenlab.fermions import occupation_block
+    from eigenlab.hamiltonian import z2_symmetries, z2_taper
+    from eigenlab.molecular import h2_631g_hamiltonian
+
+    ham = h2_631g_hamiltonian(1.401, orbitals="rhf")
+    generators = z2_symmetries(ham)
+    assert len(generators) >= 3
+
+    full = np.linalg.eigvalsh(ham.to_matrix())
+    assert full.size == 256
+    ground = float(np.linalg.eigvalsh(occupation_block(ham.to_matrix(), n_particles=2))[0])
+
+    pieces = []
+    sectors_with_ground = 0
+    for signs in itertools.product((1, -1), repeat=len(generators)):
+        tapered = z2_taper(ham, signs=signs, generators=generators)
+        assert tapered.qubits <= 5
+        levels = np.linalg.eigvalsh(tapered.to_matrix())
+        pieces.append(levels)
+        if np.any(np.isclose(levels, ground, atol=1e-8)):
+            sectors_with_ground += 1
+
+    union = np.sort(np.concatenate(pieces))
+    assert np.allclose(union, full, atol=1e-8)
+    assert sectors_with_ground == 1
+
+
 
 
 
