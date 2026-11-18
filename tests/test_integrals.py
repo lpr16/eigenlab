@@ -541,6 +541,43 @@ def test_h2_rhf_is_symmetry_orbitals_and_fci_basis_invariance():
         assert np.isclose(e_fci_low, e_fci_sym, atol=1e-10)
 
 
+def test_contracted_basis_and_631g():
+    # Phase 33: 6-31G
+    # ao_integrals accepts a list of contracted s functions. The STO-3G entry
+    # point is unchanged: the same atoms, passed as explicit STO-3G functions,
+    # return the same arrays to 1e-14.
+    # 6-31G hydrogen is from Ditchfield, Hehre, and Pople, J. Chem. Phys. 54, 724
+    # (1971). Each contracted function is normalized.
+    from eigenlab.integrals import (
+        H_631G_INNER_COEFFICIENTS,
+        H_631G_INNER_EXPONENTS,
+        H_631G_OUTER_COEFFICIENT,
+        H_631G_OUTER_EXPONENT,
+        hydrogen_631g,
+    )
+
+    atoms = [(1.0, 1.24, [0.0, 0.0, 0.0]), (1.0, 1.24, [0.0, 0.0, 1.4])]
+    sto = ao_integrals(atoms)
+    explicit = [sto3g_1s(zeta, pos) for _, zeta, pos in atoms]
+    nuclei = [(z, pos) for z, _, pos in atoms]
+    via_basis = ao_integrals(nuclei, basis=explicit)
+    assert np.allclose(sto.S, via_basis.S, atol=1e-14)
+    assert np.allclose(sto.h, via_basis.h, atol=1e-14)
+    assert np.allclose(sto.eri, via_basis.eri, atol=1e-14)
+    assert np.isclose(sto.v_nuc, via_basis.v_nuc, atol=1e-14)
+
+    inner, outer = hydrogen_631g((0.0, 0.0, 0.0))
+    assert inner.exponents == H_631G_INNER_EXPONENTS
+    assert outer.exponents == (H_631G_OUTER_EXPONENT,)
+    inner_scale = inner.coefficients[0] / H_631G_INNER_COEFFICIENTS[0]
+    assert inner_scale > 0.0
+    assert np.allclose(inner.coefficients, tuple(inner_scale * c for c in H_631G_INNER_COEFFICIENTS))
+    outer_scale = outer.coefficients[0] / H_631G_OUTER_COEFFICIENT
+    assert outer_scale > 0.0
+    for fn in (inner, outer):
+        assert abs(contracted_overlap(fn, fn) - 1.0) < 1e-6
+
+
 
 
 

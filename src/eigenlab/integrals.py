@@ -13,6 +13,12 @@ import numpy as np
 STO3G_1S_EXPONENTS: tuple[float, float, float] = (0.109818, 0.405771, 2.22766)
 STO3G_1S_COEFFICIENTS: tuple[float, float, float] = (0.444635, 0.535328, 0.154329)
 
+# Ditchfield, Hehre, and Pople, J. Chem. Phys. 54, 724 (1971), 6-31G hydrogen.
+H_631G_INNER_EXPONENTS: tuple[float, float, float] = (18.7311370, 2.8253937, 0.6401217)
+H_631G_INNER_COEFFICIENTS: tuple[float, float, float] = (0.03349460, 0.23472695, 0.81375733)
+H_631G_OUTER_EXPONENT: float = 0.1612778
+H_631G_OUTER_COEFFICIENT: float = 1.0
+
 
 @dataclass(frozen=True)
 class ContractedGaussian:
@@ -76,6 +82,42 @@ def sto3g_1s(
         center=_as_center(center),
         zeta=float(zeta),
     )
+
+
+def normalize_contraction(fn: ContractedGaussian) -> ContractedGaussian:
+    """Rescale a contracted function so its overlap with itself is 1."""
+    norm = contracted_overlap(fn, fn)
+    if norm <= 0.0:
+        raise ValueError("contracted function has non-positive norm")
+    scale = 1.0 / math.sqrt(norm)
+    return ContractedGaussian(
+        exponents=fn.exponents,
+        coefficients=tuple(scale * c for c in fn.coefficients),
+        center=fn.center,
+        zeta=fn.zeta,
+    )
+
+
+def hydrogen_631g(
+    center: Sequence[float] | np.ndarray | float = (0.0, 0.0, 0.0),
+) -> tuple[ContractedGaussian, ContractedGaussian]:
+    """6-31G hydrogen: an inner 3-Gaussian and an outer single Gaussian.
+
+    Exponents and contraction coefficients are from Ditchfield, Hehre, and
+    Pople, J. Chem. Phys. 54, 724 (1971). Each function is normalized.
+    """
+    origin = _as_center(center)
+    inner = ContractedGaussian(
+        exponents=H_631G_INNER_EXPONENTS,
+        coefficients=H_631G_INNER_COEFFICIENTS,
+        center=origin,
+    )
+    outer = ContractedGaussian(
+        exponents=(H_631G_OUTER_EXPONENT,),
+        coefficients=(H_631G_OUTER_COEFFICIENT,),
+        center=origin,
+    )
+    return normalize_contraction(inner), normalize_contraction(outer)
 
 
 def contracted_overlap(chi_a: ContractedGaussian, chi_b: ContractedGaussian) -> float:
@@ -274,58 +316,46 @@ class AOIntegrals(NamedTuple):
         return self.v_nuc
 
 
-def ao_integrals(
-    atoms: Sequence[tuple[float, float, Sequence[float] | np.ndarray | float]],
+def _assemble_integrals(
+    basis_fns: Sequence[ContractedGaussian],
+    charges: Sequence[float],
+    centers: Sequence[np.ndarray],
 ) -> AOIntegrals:
-    """Compute STO-3G 1s atomic-orbital integrals ``(S, h, eri, V_nuc)`` for ``atoms``.
-
-    Each entry in ``atoms`` is ``(Z, zeta, position)``.
-    Returns ``AOIntegrals(S, h, eri, v_nuc)``, which unpacks as a 4-tuple
-    ``(S, h, eri, V_nuc)`` with ``h = T + V`` and ``V_nuc = sum_{i < j} Z_i Z_j / |R_i - R_j|``.
-    """
-    n = len(atoms)
-    if n == 0:
-        raise ValueError("atoms must be non-empty.")
-
-    charges: list[float] = []
-    centers: list[np.ndarray] = []
-    basis_fns: list[ContractedGaussian] = []
-
-    for z_val, zeta, pos in atoms:
-        c_vec = _as_center(pos)
-        charges.append(float(z_val))
-        centers.append(c_vec)
-        basis_fns.append(sto3g_1s(float(zeta), c_vec))
+    """One- and two-electron integrals of contracted s functions about the given nuclei."""
+    n_basis = len(basis_fns)
+    n_nuc = len(charges)
+    if n_basis == 0 or n_nuc == 0:
+        raise ValueError("basis and nuclei must be non-empty.")
 
     v_nuc = 0.0
-    for i in range(n):
-        for j in range(i + 1, n):
+    for i in range(n_nuc):
+        for j in range(i + 1, n_nuc):
             dist = float(np.linalg.norm(centers[i] - centers[j]))
             if dist <= 1e-12:
                 raise ValueError(f"Atoms {i} and {j} coincide at {centers[i]}.")
             v_nuc += charges[i] * charges[j] / dist
 
-    s_mat = np.zeros((n, n), dtype=float)
-    h_mat = np.zeros((n, n), dtype=float)
-    for i in range(n):
-        for j in range(i, n):
+    s_mat = np.zeros((n_basis, n_basis), dtype=float)
+    h_mat = np.zeros((n_basis, n_basis), dtype=float)
+    for i in range(n_basis):
+        for j in range(i, n_basis):
             s_ij = contracted_overlap(basis_fns[i], basis_fns[j])
             t_ij = contracted_kinetic(basis_fns[i], basis_fns[j])
             v_ij = sum(
                 contracted_nuclear_attraction(basis_fns[i], basis_fns[j], charges[k], centers[k])
-                for k in range(n)
+                for k in range(n_nuc)
             )
             h_ij = t_ij + v_ij
             s_mat[i, j] = s_mat[j, i] = s_ij
             h_mat[i, j] = h_mat[j, i] = h_ij
 
-    eri = np.zeros((n, n, n, n), dtype=float)
+    eri = np.zeros((n_basis, n_basis, n_basis, n_basis), dtype=float)
     computed: dict[tuple[tuple[int, int], tuple[int, int]], float] = {}
-    for p in range(n):
-        for q in range(p, n):
+    for p in range(n_basis):
+        for q in range(p, n_basis):
             pair_pq = (p, q)
-            for r in range(n):
-                for s in range(r, n):
+            for r in range(n_basis):
+                for s in range(r, n_basis):
                     pair_rs = (r, s)
                     canon = (pair_pq, pair_rs) if pair_pq <= pair_rs else (pair_rs, pair_pq)
                     if canon not in computed:
@@ -346,6 +376,40 @@ def ao_integrals(
                         eri[idx] = val
 
     return AOIntegrals(S=s_mat, h=h_mat, eri=eri, v_nuc=v_nuc)
+
+
+def ao_integrals(
+    atoms: Sequence[tuple],
+    basis: Sequence[ContractedGaussian] | None = None,
+) -> AOIntegrals:
+    """Atomic-orbital integrals ``(S, h, eri, V_nuc)``.
+
+    Without ``basis``, each entry of ``atoms`` is ``(Z, zeta, position)`` and the
+    basis is one STO-3G 1s function per atom. With ``basis``, ``atoms`` are the
+    nuclei ``(Z, position)`` and ``basis`` is the list of contracted s functions.
+    ``h = T + V`` and ``V_nuc = sum_{i < j} Z_i Z_j / |R_i - R_j|``.
+    """
+    if len(atoms) == 0:
+        raise ValueError("atoms must be non-empty.")
+
+    charges: list[float] = []
+    centers: list[np.ndarray] = []
+    if basis is None:
+        basis_fns: list[ContractedGaussian] = []
+        for entry in atoms:
+            z_val, zeta, pos = entry
+            c_vec = _as_center(pos)
+            charges.append(float(z_val))
+            centers.append(c_vec)
+            basis_fns.append(sto3g_1s(float(zeta), c_vec))
+    else:
+        basis_fns = list(basis)
+        for entry in atoms:
+            z_val, pos = entry[0], entry[-1]
+            charges.append(float(z_val))
+            centers.append(_as_center(pos))
+
+    return _assemble_integrals(basis_fns, charges, centers)
 
 
 def h2_symmetry_orbitals(S: np.ndarray | float) -> np.ndarray:
