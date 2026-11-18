@@ -3,7 +3,8 @@ import math
 import numpy as np
 import pytest
 
-from eigenlab.collective import collective_spin, dicke, spin_matrices
+from eigenlab.collective import collective_spin, dicke, one_axis_state, spin_matrices
+from eigenlab.dynamics import evolve
 from eigenlab.states import PLUS, bipartite_entropy, ghz, qfi, w_state
 
 
@@ -113,3 +114,45 @@ def test_dicke_fisher():
             assert np.isclose(qfi(ghz(n), jz), n * n, atol=1e-10)
             assert np.isclose(qfi(dicke(n, n // 2), jx), half, atol=1e-10)
 
+
+def _product_plus(n: int) -> np.ndarray:
+    state = PLUS
+    for _ in range(n - 1):
+        state = np.kron(state, PLUS)
+    return state
+
+
+def _spin_expectations(state: np.ndarray, ops) -> tuple[float, float, float]:
+    return tuple(float(np.real(np.vdot(state, op @ state))) for op in ops)
+
+
+def test_one_axis_twisting():
+    # Phase 23: One-axis twisting
+    # H = χ J_z², starting from |+⟩^{⊗n}.
+    # Kitagawa and Ueda, Phys. Rev. A 47, 5138 (1993):
+    #   ⟨J_x(t)⟩ = (n/2) cos^{n−1}(χ t),   ⟨J_y⟩ = ⟨J_z⟩ = 0.
+    chi = 0.1
+    times = (0.5, 2.0, 7.0)
+
+    for n in range(1, 9):
+        _, _, jz = collective_spin(n)
+        h = (chi * (jz @ jz)).simplify()
+        psi0 = _product_plus(n)
+        jx_m, jy_m, jz_m = (op.to_matrix() for op in collective_spin(n))
+        for t in times:
+            psi = evolve(h, psi0, t)
+            jx, jy, jz_exp = _spin_expectations(psi, (jx_m, jy_m, jz_m))
+            expected = (n / 2.0) * math.cos(chi * t) ** (n - 1)
+            assert np.isclose(jx, expected, atol=1e-10)
+            assert np.isclose(jy, 0.0, atol=1e-10)
+            assert np.isclose(jz_exp, 0.0, atol=1e-10)
+
+    for n in (16, 32, 64):
+        ops = spin_matrices(n / 2.0)
+        for t in times:
+            psi = one_axis_state(n, chi, t)
+            jx, jy, jz_exp = _spin_expectations(psi, ops)
+            expected = (n / 2.0) * math.cos(chi * t) ** (n - 1)
+            assert np.isclose(jx, expected, atol=1e-10)
+            assert np.isclose(jy, 0.0, atol=1e-10)
+            assert np.isclose(jz_exp, 0.0, atol=1e-10)

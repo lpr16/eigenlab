@@ -50,6 +50,24 @@ def spin_matrices(j: float) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     return j_x, j_y, j_z
 
 
+def one_axis_state(n: int, chi: float, time: float) -> np.ndarray:
+    """Evolve |+⟩^{⊗n} under H = χ J_z² inside the symmetric subspace.
+
+    The initial state is the spin coherent state along x, written in the Dicke
+    basis k = 0…n (m = n/2 − k). J_z² is diagonal there, with entries m².
+    """
+    if n < 1:
+        raise ValueError(f"n must be at least 1, got {n}")
+    amps = np.empty(n + 1, dtype=complex)
+    amps[0] = 2.0 ** (-n / 2.0)
+    for k in range(n):
+        amps[k + 1] = amps[k] * math.sqrt((n - k) / (k + 1.0))
+    j = n / 2.0
+    ms = j - np.arange(n + 1, dtype=float)
+    phases = np.exp(-1j * float(chi) * (ms ** 2) * float(time))
+    return amps * phases
+
+
 def dicke(n: int, k: int) -> np.ndarray:
     """Return the normalized Dicke state |n, k⟩ = (1/√(n choose k)) ∑_{weight(x)=k} |x⟩."""
     if not (0 <= k <= n):
