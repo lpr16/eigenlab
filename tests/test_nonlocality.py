@@ -4,7 +4,8 @@ import itertools
 
 import numpy as np
 
-from eigenlab.nonlocality import mermin_operator, mermin_three
+from eigenlab.nonlocality import PERES_MERMIN_SQUARE, mermin_operator, mermin_three
+from eigenlab.pauli import pauli_comm, pauli_mult
 from eigenlab.states import ghz
 
 
@@ -73,3 +74,51 @@ def test_mermin_enumeration():
 
     assert ratios[-1] > ratios[0]
     assert all(b >= a for a, b in zip(ratios, ratios[1:]))
+
+def _pauli_product(labels: tuple[str, ...]) -> tuple[complex, str]:
+    phase, label = 1.0 + 0.0j, labels[0]
+    for nxt in labels[1:]:
+        step, label = pauli_mult(label, nxt)
+        phase *= step
+    return phase, label
+
+
+def test_peres_mermin_square():
+    # Phase 27: The Peres–Mermin square
+    # Rows and columns each consist of mutually commuting operators.
+    # Each row multiplies to +I. The columns multiply to +I, +I, −I:
+    # the last column is XZ · ZX · YY = (−i)² I.
+    square = PERES_MERMIN_SQUARE
+    for row in square:
+        for a, b in itertools.combinations(row, 2):
+            phase, _ = pauli_comm(a, b)
+            assert phase == 0
+        phase, label = _pauli_product(row)
+        assert label == "II"
+        assert phase == 1
+
+    columns = tuple(zip(*square))
+    column_signs = (1, 1, -1)
+    for col, sign in zip(columns, column_signs):
+        for a, b in itertools.combinations(col, 2):
+            phase, _ = pauli_comm(a, b)
+            assert phase == 0
+        phase, label = _pauli_product(col)
+        assert label == "II"
+        assert phase == sign
+
+    # No assignment of ±1 to the nine entries reproduces all six products.
+    entries = [square[i][j] for i in range(3) for j in range(3)]
+    assert len(entries) == 9
+    found = False
+    for signs in itertools.product((-1, 1), repeat=9):
+        grid = [signs[0:3], signs[3:6], signs[6:9]]
+        row_ok = all(grid[i][0] * grid[i][1] * grid[i][2] == 1 for i in range(3))
+        col_ok = (
+            grid[0][0] * grid[1][0] * grid[2][0] == 1
+            and grid[0][1] * grid[1][1] * grid[2][1] == 1
+            and grid[0][2] * grid[1][2] * grid[2][2] == -1
+        )
+        found = found or (row_ok and col_ok)
+    assert not found
+

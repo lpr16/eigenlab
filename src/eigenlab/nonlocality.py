@@ -25,6 +25,14 @@ def mermin_operator(n: int) -> Hamiltonian:
     return Hamiltonian(terms).simplify()
 
 
+# Rows XI IX XX; IZ ZI ZZ; XZ ZX YY.
+PERES_MERMIN_SQUARE: tuple[tuple[str, str, str], ...] = (
+    ("XI", "IX", "XX"),
+    ("IZ", "ZI", "ZZ"),
+    ("XZ", "ZX", "YY"),
+)
+
+
 def mermin_three() -> Hamiltonian:
     """Three-qubit Mermin operator ``XXX − XYY − YXY − YYX``."""
     return Hamiltonian(
