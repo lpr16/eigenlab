@@ -1273,5 +1273,34 @@ def test_hubbard_heisenberg_limit():
     assert abs(slope + 3.0) <= 0.05
 
 
+def test_hubbard_low_band():
+    # Phase 32: The whole low band
+    # In the same N = 4, S_z = 0 block, the six lowest Hubbard levels map onto
+    # the six levels of (J/4)(H_σ − 3) in the spin S_z = 0 sector, dimension C(4, 2) = 6.
+    # The largest of the six differences also falls as U⁻³, with the same tolerance.
+    # At U = 20 the seventh level is separated from the sixth by more than U/2.
+    import math
+
+    from eigenlab.fermions import hubbard_chain
+
+    h_sigma = _open_heisenberg(4)
+    spin_indices = [index for index in range(16) if index.bit_count() == 2]
+    assert len(spin_indices) == math.comb(4, 2)
+    spin_levels = np.linalg.eigvalsh(h_sigma[np.ix_(spin_indices, spin_indices)])
+    indices = _half_filling_sz0(4)
+    couplings = np.array([20.0, 40.0, 80.0, 160.0])
+    errors = []
+    for interaction in couplings:
+        exchange = 4.0 / float(interaction)
+        target = (exchange / 4.0) * (spin_levels - 3.0)
+        block = hubbard_chain(4, t=1.0, U=float(interaction)).to_matrix()
+        levels = np.linalg.eigvalsh(block[np.ix_(indices, indices)])
+        errors.append(float(np.max(np.abs(levels[:6] - target))))
+        if interaction == 20.0:
+            assert levels[6] - levels[5] > interaction / 2.0
+    slope = float(np.polyfit(np.log(couplings), np.log(errors), 1)[0])
+    assert abs(slope + 3.0) <= 0.05
+
+
 
 
