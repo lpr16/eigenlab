@@ -1202,5 +1202,76 @@ def test_hubbard_chain():
         assert np.allclose(energies, np.sort(free), atol=1e-10)
 
 
+def _half_filling_sz0(n_sites: int) -> list[int]:
+    """Computational indices with n_sites electrons and S_z = 0.
+
+    Qubit 0 is the most significant bit. Even orbitals are spin up.
+    """
+    n = 2 * n_sites
+    chosen = []
+    for index in range(1 << n):
+        if index.bit_count() != n_sites:
+            continue
+        n_up = 0
+        for qubit in range(n):
+            occupied = (index >> (n - 1 - qubit)) & 1
+            if occupied and qubit % 2 == 0:
+                n_up += 1
+        if n_up * 2 == n_sites:
+            chosen.append(index)
+    return chosen
+
+
+def _open_heisenberg(n_sites: int) -> np.ndarray:
+    """H_σ = Σ_bonds (XX + YY + ZZ) on an open chain of n_sites spins."""
+    from eigenlab.pauli import pauli
+
+    dim = 1 << n_sites
+    mat = np.zeros((dim, dim), dtype=complex)
+    for site in range(n_sites - 1):
+        for letter in "XYZ":
+            label = ["I"] * n_sites
+            label[site] = letter
+            label[site + 1] = letter
+            mat += pauli("".join(label))
+    return mat
+
+
+def test_hubbard_heisenberg_limit():
+    # Phase 31: Heisenberg limit
+    # At half filling and large U, H_eff = J Σ_bonds (S_i·S_j − 1/4), J = 4t²/U.
+    # With S·S = σ·σ/4 this is (J/4)(H_σ − (n−1)).
+    # At n = 2 the singlet is (U − √(U² + 16t²))/2 = −4t²/U + 16t⁴/U³ + …
+    # For four sites the ground-energy error in the N = 4, S_z = 0 block falls as U⁻³.
+    # The log-log slope over U = 20, 40, 80, 160 is −3 within 0.05.
+    from eigenlab.fermions import hubbard_chain
+
+    t_hop = 1.0
+    for interaction in (4.0, 20.0, 80.0):
+        closed = 0.5 * (interaction - np.sqrt(interaction**2 + 16.0 * t_hop**2))
+        series = -4.0 * t_hop**2 / interaction + 16.0 * t_hop**4 / interaction**3
+        assert abs(closed - series) < abs(16.0 * t_hop**4 / interaction**3)
+        block = hubbard_chain(2, t=t_hop, U=interaction).to_matrix()
+        indices = _half_filling_sz0(2)
+        ground = np.linalg.eigvalsh(block[np.ix_(indices, indices)])[0]
+        exchange = 4.0 * t_hop**2 / float(interaction)
+        assert np.isclose(ground, closed, atol=1e-10)
+        assert np.isclose(series + exchange, 16.0 * t_hop**4 / interaction**3, atol=1e-12)
+
+    h_sigma = _open_heisenberg(4)
+    heisenberg_ground = float(np.linalg.eigvalsh(h_sigma)[0])
+    indices = _half_filling_sz0(4)
+    couplings = np.array([20.0, 40.0, 80.0, 160.0])
+    errors = []
+    for interaction in couplings:
+        exchange = 4.0 * t_hop**2 / interaction
+        target = (exchange / 4.0) * (heisenberg_ground - 3.0)
+        block = hubbard_chain(4, t=t_hop, U=float(interaction)).to_matrix()
+        ground = float(np.linalg.eigvalsh(block[np.ix_(indices, indices)])[0])
+        errors.append(abs(ground - target))
+    slope = float(np.polyfit(np.log(couplings), np.log(errors), 1)[0])
+    assert abs(slope + 3.0) <= 0.05
+
+
 
 
