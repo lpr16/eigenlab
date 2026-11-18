@@ -1176,5 +1176,31 @@ def test_parity_mapping_everywhere():
         h2_sto3g_hamiltonian(1.401, mapping="invalid_map")
 
 
+def test_hubbard_chain():
+    # Phase 30: Hubbard chain
+    # Open chain, orbitals 2i up and 2i+1 down, at most four sites.
+    # Two sites is the Hubbard dimer. At U = 0 the spectrum is every filling
+    # of two copies of the open tight-binding energies ε_k = −2t cos(π k / (n+1)).
+    from eigenlab.fermions import hubbard_chain, hubbard_dimer
+
+    for t_hop, interaction in ((1.0, 0.0), (1.0, 4.0), (0.7, 1.5)):
+        chain = hubbard_chain(2, t=t_hop, U=interaction)
+        dimer = hubbard_dimer(t=t_hop, U=interaction)
+        assert np.allclose(chain.to_matrix(), dimer.to_matrix(), atol=1e-12)
+
+    for n_sites in (2, 3, 4):
+        t_hop = 1.0
+        energies = np.linalg.eigvalsh(hubbard_chain(n_sites, t=t_hop, U=0.0).to_matrix())
+        single = [
+            -2.0 * t_hop * np.cos(np.pi * k / (n_sites + 1))
+            for k in range(1, n_sites + 1)
+        ]
+        modes = single + single
+        free = []
+        for mask in range(1 << len(modes)):
+            free.append(sum(modes[b] for b in range(len(modes)) if mask & (1 << b)))
+        assert np.allclose(energies, np.sort(free), atol=1e-10)
+
+
 
 

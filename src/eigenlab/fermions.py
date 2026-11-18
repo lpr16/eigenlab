@@ -390,6 +390,36 @@ def hubbard_dimer(
     return h.simplify()
 
 
+def hubbard_chain(
+    n_sites: int,
+    t: float = 1.0,
+    U: float = 0.0,
+    mapping: str = "jordan_wigner",
+) -> Hamiltonian:
+    """Open Hubbard chain. Site i has spin-orbitals 2i (up) and 2i+1 (down).
+
+    H = −t ∑_{⟨ij⟩,σ} (c†_{iσ} c_{jσ} + h.c.) + U ∑_i n_{i↑} n_{i↓}.
+    ``n_sites`` is at most 4, so the qubit register stays within eight qubits.
+    """
+    if not 1 <= int(n_sites) <= 4:
+        raise ValueError(f"n_sites must lie in 1..4, got {n_sites}")
+    sites = int(n_sites)
+    n_orbitals = 2 * sites
+    a_fn, adag_fn = _ladder_operators(mapping)
+    h = Hamiltonian([(0.0, "I" * n_orbitals)])
+    for site in range(sites - 1):
+        for spin in (0, 1):
+            i = 2 * site + spin
+            j = 2 * (site + 1) + spin
+            hop = adag_fn(i, n_orbitals) @ a_fn(j, n_orbitals) + adag_fn(j, n_orbitals) @ a_fn(i, n_orbitals)
+            h = h + (-float(t) * hop)
+    for site in range(sites):
+        n_up = number_operator(2 * site, n_orbitals, mapping=mapping)
+        n_down = number_operator(2 * site + 1, n_orbitals, mapping=mapping)
+        h = h + (float(U) * (n_up @ n_down))
+    return h.simplify()
+
+
 def occupation_block(
     hamiltonian: Hamiltonian | np.ndarray,
     n_particles: int = 2,
