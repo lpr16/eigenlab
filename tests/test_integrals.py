@@ -578,6 +578,22 @@ def test_contracted_basis_and_631g():
         assert abs(contracted_overlap(fn, fn) - 1.0) < 1e-6
 
 
+def test_hydrogen_631g_energy():
+    # Phase 34: Hydrogen atom in 6-31G
+    # The 2×2 problem h c = E S c is solved through lowdin. The variational
+    # theorem gives E > −1/2, strictly, against the exact hydrogen energy.
+    # The spans of 6-31G and STO-3G are not nested, so E lying below the cited
+    # STO-3G value is a computed fact, not a theorem.
+    # The 6-31G* atomic-energy table (hydrogen has no polarization function,
+    # so this is the 6-31G energy) lists H ²S as −0.498233 Hartree.
+    from eigenlab.integrals import hydrogen_631g_energy
+
+    energy = hydrogen_631g_energy()
+    assert energy > -0.5
+    assert energy < H_ATOM_STO3G_ENERGY
+    assert np.isclose(energy, -0.498233, atol=1e-6)
+
+
 
 
 

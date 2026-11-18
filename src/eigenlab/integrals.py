@@ -412,6 +412,15 @@ def ao_integrals(
     return _assemble_integrals(basis_fns, charges, centers)
 
 
+def hydrogen_631g_energy() -> float:
+    """Lowest generalized eigenvalue of the 6-31G hydrogen atom, h c = E S c."""
+    inner, outer = hydrogen_631g((0.0, 0.0, 0.0))
+    ao = ao_integrals([(1.0, (0.0, 0.0, 0.0))], basis=(inner, outer))
+    ortho = lowdin(ao.S)
+    core = ortho.T @ ao.h @ ortho
+    return float(np.linalg.eigvalsh(core)[0])
+
+
 def h2_symmetry_orbitals(S: np.ndarray | float) -> np.ndarray:
     """Return the 2x2 minimal-basis symmetry-adapted MO coefficient matrix C = [sigma_g, sigma_u]."""
     arr = np.asarray(S, dtype=float)
