@@ -3,7 +3,13 @@ import math
 import numpy as np
 import pytest
 
-from eigenlab.collective import collective_spin, dicke, one_axis_state, spin_matrices
+from eigenlab.collective import (
+    collective_spin,
+    dicke,
+    one_axis_squeezing,
+    one_axis_state,
+    spin_matrices,
+)
 from eigenlab.dynamics import evolve
 from eigenlab.states import PLUS, bipartite_entropy, ghz, qfi, w_state
 
@@ -156,3 +162,25 @@ def test_one_axis_twisting():
             assert np.isclose(jx, expected, atol=1e-10)
             assert np.isclose(jy, 0.0, atol=1e-10)
             assert np.isclose(jz_exp, 0.0, atol=1e-10)
+
+
+def test_one_axis_squeezing():
+    # Phase 24: Squeezing
+    # ξ² = n V_min / ⟨J_x⟩². At t = 0 the state is coherent: V_min = n/4,
+    # ⟨J_x⟩ = n/2, so ξ² = 1.
+    # Pezzé and Smerzi, Phys. Rev. Lett. 102, 100401 (2009):
+    #   F ≥ ⟨J_x⟩² / V_min = n / ξ²,
+    # and on a pure state F = 4 Var(J_⊥).
+    chi = 0.1
+    times = (0.0, 0.5, 1.0, 2.0, 7.0)
+    for n in (8, 64):
+        for t in times:
+            xi2, fisher, bound = one_axis_squeezing(n, chi, t)
+            if t == 0.0:
+                assert np.isclose(xi2, 1.0, atol=1e-10)
+                assert np.isclose(fisher, n, atol=1e-8)
+            assert fisher >= bound - 1e-8
+
+    # Kitagawa–Ueda squeezing at n = 64, χt = 0.05.
+    xi_squeezed, _, _ = one_axis_squeezing(64, 1.0, 0.05)
+    assert xi_squeezed < 1.0

@@ -68,6 +68,44 @@ def one_axis_state(n: int, chi: float, time: float) -> np.ndarray:
     return amps * phases
 
 
+def one_axis_squeezing(
+    n: int, chi: float, time: float
+) -> tuple[float, float, float]:
+    """Wineland squeezing of one-axis twisting, and the Pezzé–Smerzi bound.
+
+    Returns ``(ξ², F, n/ξ²)``. ``V_min`` is the smaller eigenvalue of the
+    symmetrized covariance of ``J_y`` and ``J_z``, ``s`` its direction, and
+    ``ξ² = n V_min / ⟨J_x⟩²``. ``F = 4 Var(J_⊥)`` with ``J_⊥`` along ``x̂ × s``.
+    """
+    psi = one_axis_state(n, chi, time)
+    jx, jy, jz = spin_matrices(n / 2.0)
+
+    def expect(op: np.ndarray) -> complex:
+        return np.vdot(psi, op @ psi)
+
+    mean_x = float(np.real(expect(jx)))
+    mean_y = float(np.real(expect(jy)))
+    mean_z = float(np.real(expect(jz)))
+    ops = (jy, jz)
+    means = (mean_y, mean_z)
+    cov = np.zeros((2, 2), dtype=float)
+    for a in range(2):
+        for b in range(a, 2):
+            anti = 0.5 * (expect(ops[a] @ ops[b]) + expect(ops[b] @ ops[a]))
+            val = float(np.real(anti)) - means[a] * means[b]
+            cov[a, b] = cov[b, a] = val
+    evals, evecs = np.linalg.eigh(cov)
+    v_min = float(evals[0])
+    sy, sz = (float(evecs[0, 0]), float(evecs[1, 0]))
+    # x̂ × (sy ŷ + sz ẑ) = sy ẑ − sz ŷ
+    j_perp = -sz * jy + sy * jz
+    mean_p = float(np.real(expect(j_perp)))
+    var_p = float(np.real(expect(j_perp @ j_perp))) - mean_p * mean_p
+    fisher = 4.0 * var_p
+    xi2 = n * v_min / (mean_x * mean_x)
+    return xi2, fisher, n / xi2
+
+
 def dicke(n: int, k: int) -> np.ndarray:
     """Return the normalized Dicke state |n, k⟩ = (1/√(n choose k)) ∑_{weight(x)=k} |x⟩."""
     if not (0 <= k <= n):
