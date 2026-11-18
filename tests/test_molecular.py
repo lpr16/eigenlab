@@ -686,6 +686,63 @@ def test_taper_heh_on_three_qubits():
     assert np.allclose(np.sort(np.concatenate([spec_even, spec_odd])), evals4, atol=1e-10)
 
 
+def test_h2_631g():
+    # Phase 35: H2 in 6-31G
+    # Four spatial orbitals, eight qubits. Full CI is taken in the N = 2 block,
+    # dimension C(8, 2) = 28. The Hamiltonian commutes with particle number and S_z.
+    # Full CI is the same in Löwdin and RHF orbitals. The RHF energy is the
+    # expectation value on the doubly occupied lowest orbital, basis(0b11000000).
+    # At R = 20 the atoms are separate, so full CI is 2E with E from the 6-31G atom.
+    # The full-CI gradient changes sign on [1.0, 2.0]; bisect that bracket.
+    # 6-31G full CI at R = 1.401 lies below the cited STO-3G value −1.13727.
+    import math
+
+    from eigenlab.fermions import occupation_block, total_number_operator, total_spin_z
+    from eigenlab.integrals import hydrogen_631g_energy, rhf
+    from eigenlab.molecular import _h2_631g_ao, h2_631g_hamiltonian
+    from eigenlab.states import basis
+
+    def fci(bond: float, orbitals: str) -> float:
+        ham = h2_631g_hamiltonian(bond, orbitals=orbitals)
+        block = occupation_block(ham.to_matrix(), n_particles=2)
+        assert block.shape == (math.comb(8, 2), math.comb(8, 2))
+        return float(np.linalg.eigvalsh(block)[0])
+
+    ham = h2_631g_hamiltonian(1.401, orbitals="rhf")
+    mat = ham.to_matrix()
+    number = total_number_operator(8).to_matrix()
+    spin_z = total_spin_z(4).to_matrix()
+    assert np.allclose(mat @ number, number @ mat, atol=1e-10)
+    assert np.allclose(mat @ spin_z, spin_z @ mat, atol=1e-10)
+
+    e_rhf_ci = fci(1.401, "rhf")
+    e_low_ci = fci(1.401, "lowdin")
+    assert np.isclose(e_rhf_ci, e_low_ci, atol=1e-8)
+
+    rhf_energy = rhf(_h2_631g_ao(1.401), n_electrons=2).energy
+    determinant = basis(0b11000000, 8)
+    assert np.isclose(ham.expectation(determinant), rhf_energy, atol=1e-10)
+
+    dissociated = fci(20.0, "lowdin")
+    assert np.isclose(dissociated, 2.0 * hydrogen_631g_energy(), atol=1e-6)
+
+    def gradient(bond: float, step: float = 1e-3) -> float:
+        return (fci(bond + step, "lowdin") - fci(bond - step, "lowdin")) / (2.0 * step)
+
+    low, high = 1.0, 2.0
+    g_low, g_high = gradient(low), gradient(high)
+    assert g_low < 0.0 < g_high
+    while high - low > 1e-2:
+        mid = 0.5 * (low + high)
+        if gradient(mid) < 0.0:
+            low = mid
+        else:
+            high = mid
+    assert high - low <= 1e-2
+
+    assert e_rhf_ci < -1.13727
+
+
 
 
 

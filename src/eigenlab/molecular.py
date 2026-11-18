@@ -17,6 +17,7 @@ from eigenlab.integrals import (
     ao_integrals,
     contracted_nuclear_attraction,
     h2_symmetry_orbitals,
+    hydrogen_631g,
     lowdin,
     mo_transform,
     rhf,
@@ -197,6 +198,51 @@ def h2_sto3g_integrals(
     C = h2_symmetry_orbitals(S)
     h1, h2 = mo_transform(C, h, eri)
     return h1, h2, v_nuc
+
+
+def _h2_631g_ao(bond_length_au: float):
+    """6-31G AO integrals of H2. Two contracted s functions on each proton."""
+    r_val = float(bond_length_au)
+    if r_val <= 0.0:
+        raise ValueError(f"bond_length_au must be positive, got {bond_length_au}")
+    left = hydrogen_631g((0.0, 0.0, 0.0))
+    right = hydrogen_631g((0.0, 0.0, r_val))
+    nuclei = [(1.0, (0.0, 0.0, 0.0)), (1.0, (0.0, 0.0, r_val))]
+    return ao_integrals(nuclei, basis=left + right)
+
+
+def h2_631g_integrals(
+    bond_length_au: float = 1.401,
+    orbitals: str = "rhf",
+) -> tuple[np.ndarray, np.ndarray, float]:
+    """Spatial MO integrals of H2 in 6-31G, in an orthonormal basis.
+
+    ``orbitals`` is ``"rhf"`` (canonical restricted Hartree–Fock) or ``"lowdin"``.
+    Returns ``(h, eri, V_nuc)`` in chemist notation.
+    """
+    ao = _h2_631g_ao(bond_length_au)
+    kind = orbitals.lower()
+    if kind == "rhf":
+        coefficients = rhf(ao, n_electrons=2).coefficients
+    elif kind == "lowdin":
+        coefficients = lowdin(ao.S)
+    else:
+        raise ValueError(f"orbitals must be 'rhf' or 'lowdin', got {orbitals}")
+    h_mo, eri_mo = mo_transform(coefficients, ao.h, ao.eri)
+    return h_mo, eri_mo, ao.v_nuc
+
+
+def h2_631g_hamiltonian(
+    bond_length_au: float = 1.401,
+    mapping: str = "jordan_wigner",
+    orbitals: str = "rhf",
+) -> Hamiltonian:
+    """Eight-qubit Hamiltonian of H2 in 6-31G, including nuclear repulsion."""
+    h_mo, eri_mo, v_nuc = h2_631g_integrals(bond_length_au, orbitals=orbitals)
+    h_spin, eri_spin = spatial_to_spin_orbital(h_mo, eri_mo)
+    return integral_hamiltonian(
+        h_spin, eri_spin, nuclear_repulsion=v_nuc, mapping=mapping
+    ).simplify()
 
 
 def h2_sto3g_hamiltonian(
