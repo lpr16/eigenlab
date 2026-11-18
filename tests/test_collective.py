@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 from eigenlab.collective import collective_spin, dicke, spin_matrices
-from eigenlab.states import bipartite_entropy, w_state
+from eigenlab.states import PLUS, bipartite_entropy, ghz, qfi, w_state
 
 
 def test_symmetric_subspace():
@@ -71,3 +71,45 @@ def test_dicke_states():
                 assert np.isclose(np.sum(probs), 1.0, atol=1e-12)
                 entropy = float(-np.sum(probs * np.log2(probs)))
                 assert np.isclose(entropy, bipartite_entropy(state, cut), atol=1e-10)
+
+
+def _dicke_fisher(n: int, k: int) -> float:
+    """F = 2 (j(j+1) − m²) with j = n/2 and m = n/2 − k."""
+    j = n / 2.0
+    m = n / 2.0 - k
+    return 2.0 * (j * (j + 1.0) - m * m)
+
+
+def test_dicke_fisher():
+    # Phase 22: Fisher information of Dicke states
+    # In |j, m⟩, Var(J_x) = (j(j+1) − m²)/2, so the pure-state QFI is
+    # F = 4 Var(J_x) = 2 (j(j+1) − m²).
+    for n in range(1, 9):
+        jx = collective_spin(n)[0]
+        for k in range(n + 1):
+            assert np.isclose(qfi(dicke(n, k), jx), _dicke_fisher(n, k), atol=1e-10)
+
+    for n in (16, 32, 64):
+        jx = spin_matrices(n / 2.0)[0]
+        for k in range(n + 1):
+            ket = np.zeros(n + 1, dtype=complex)
+            ket[k] = 1.0
+            assert np.isclose(qfi(ket, jx), _dicke_fisher(n, k), atol=1e-10)
+
+    # At half filling, F = n(n+2)/2. That beats a product state's n for every
+    # n ≥ 1 and falls short of GHZ's n² for every n ≥ 3.
+    for n in range(1, 9):
+        half = n * (n + 2) / 2.0
+        assert np.isclose(half, _dicke_fisher(n, n / 2.0), atol=1e-12)
+        assert half > n
+        if n >= 3:
+            assert half < n * n
+        if n % 2 == 0:
+            jx, _, jz = collective_spin(n)
+            product = PLUS
+            for _ in range(n - 1):
+                product = np.kron(product, PLUS)
+            assert np.isclose(qfi(product, jz), n, atol=1e-10)
+            assert np.isclose(qfi(ghz(n), jz), n * n, atol=1e-10)
+            assert np.isclose(qfi(dicke(n, n // 2), jx), half, atol=1e-10)
+
