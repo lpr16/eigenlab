@@ -418,5 +418,54 @@ def test_matrix_exponential_expm():
     assert np.allclose(expm(A_rand) @ expm(-A_rand), np.eye(4), atol=1e-12)
 
 
+def test_floquet_quasienergies():
+    # Phase 29: Floquet quasienergies of the rotating drive
+    # H(t) = −(ω₀/2) Z + (Ω/2)(cos ωt X − sin ωt Y), period T = 2π/ω.
+    # In the frame R(t) = exp(i ω t Z / 2), U(t) = R(t) exp(−i H_eff t) with
+    # H_eff = (δ/2) Z + (Ω/2) X and δ = ω − ω₀.
+    # R(T) = exp(i π Z) = −I, so U(T) = −exp(−i H_eff T).
+    # Quasienergies, modulo ω: ε = ω/2 ± √(Ω² + δ²)/2.
+    from eigenlab.dynamics import evolve_driven, expm
+    from eigenlab.pauli import X, Y, Z
+    from eigenlab.states import ONE, ZERO
+
+    omega0 = 1.0
+    omega_rabi = 0.2
+    omega = 1.1
+    detuning = omega - omega0
+    period = 2.0 * np.pi / omega
+
+    def hamiltonian_at(t: float) -> np.ndarray:
+        drive = np.cos(omega * t) * X - np.sin(omega * t) * Y
+        return -(omega0 / 2.0) * Z + (omega_rabi / 2.0) * drive
+
+    def one_period(steps: int) -> np.ndarray:
+        col0 = evolve_driven(hamiltonian_at, ZERO, period, steps)
+        col1 = evolve_driven(hamiltonian_at, ONE, period, steps)
+        return np.column_stack((col0, col1))
+
+    steps = 64
+    previous = one_period(steps)
+    for _ in range(12):
+        steps *= 2
+        current = one_period(steps)
+        if np.linalg.norm(current - previous) < 1e-8:
+            break
+        previous = current
+    else:
+        raise AssertionError("Floquet unitary did not settle under step doubling")
+
+    h_eff = (detuning / 2.0) * Z + (omega_rabi / 2.0) * X
+    exact = -expm(-1j * h_eff * period)
+    assert np.allclose(current, exact, atol=1e-6)
+
+    half = 0.5 * np.sqrt(omega_rabi**2 + detuning**2)
+    expected = np.array([omega / 2.0 + half, omega / 2.0 - half])
+    phases = -np.angle(np.linalg.eigvals(current)) / period
+    for got in phases:
+        distances = [abs((got - eps + omega / 2.0) % omega - omega / 2.0) for eps in expected]
+        assert min(distances) < 1e-6
+
+
 
 
