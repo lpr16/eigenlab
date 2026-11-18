@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import itertools
 
+import numpy as np
+
 from eigenlab.hamiltonian import Hamiltonian
+from eigenlab.pauli import X, Y, Z
 
 
 def mermin_operator(n: int) -> Hamiltonian:
@@ -31,6 +34,31 @@ PERES_MERMIN_SQUARE: tuple[tuple[str, str, str], ...] = (
     ("IZ", "ZI", "ZZ"),
     ("XZ", "ZX", "YY"),
 )
+
+
+def correlation_matrix(rho: np.ndarray) -> np.ndarray:
+    """T_ij = Tr(ρ σ_i ⊗ σ_j) for σ in (X, Y, Z)."""
+    state = np.asarray(rho, dtype=complex)
+    if state.shape != (4, 4):
+        raise ValueError(f"correlation_matrix expects a two-qubit state, got {state.shape}")
+    paulis = (X, Y, Z)
+    corr = np.zeros((3, 3), dtype=float)
+    for i, left in enumerate(paulis):
+        for j, right in enumerate(paulis):
+            op = np.kron(left, right)
+            corr[i, j] = float(np.real(np.trace(state @ op)))
+    return corr
+
+
+def chsh_horodecki(rho: np.ndarray) -> float:
+    """Largest CHSH value 2√M, with M the sum of the two largest eigenvalues of TᵀT.
+
+    Horodecki, Horodecki and Horodecki, Phys. Lett. A 200, 340 (1995).
+    """
+    corr = correlation_matrix(rho)
+    evals = np.linalg.eigvalsh(corr.T @ corr)
+    largest = float(evals[-1] + evals[-2])
+    return 2.0 * float(np.sqrt(max(0.0, largest)))
 
 
 def mermin_three() -> Hamiltonian:

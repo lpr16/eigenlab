@@ -4,9 +4,16 @@ import itertools
 
 import numpy as np
 
-from eigenlab.nonlocality import PERES_MERMIN_SQUARE, mermin_operator, mermin_three
+from eigenlab.hamiltonian import chsh_operator
+from eigenlab.nonlocality import (
+    PERES_MERMIN_SQUARE,
+    chsh_horodecki,
+    correlation_matrix,
+    mermin_operator,
+    mermin_three,
+)
 from eigenlab.pauli import pauli_comm, pauli_mult
-from eigenlab.states import ghz
+from eigenlab.states import concurrence, ghz, werner_state
 
 
 def test_mermin_three():
@@ -75,6 +82,7 @@ def test_mermin_enumeration():
     assert ratios[-1] > ratios[0]
     assert all(b >= a for a, b in zip(ratios, ratios[1:]))
 
+
 def _pauli_product(labels: tuple[str, ...]) -> tuple[complex, str]:
     phase, label = 1.0 + 0.0j, labels[0]
     for nxt in labels[1:]:
@@ -122,3 +130,44 @@ def test_peres_mermin_square():
         found = found or (row_ok and col_ok)
     assert not found
 
+
+def _chsh_setting(corr: np.ndarray, alpha: float, beta: float) -> float:
+    """CHSH value for planar directions fixed by two angles."""
+    a = np.array([np.sin(alpha), 0.0, np.cos(alpha)])
+    a_prime = np.array([np.cos(alpha), 0.0, -np.sin(alpha)])
+    b = np.array([np.sin(beta), 0.0, np.cos(beta)])
+    b_prime = np.array([np.cos(beta), 0.0, -np.sin(beta)])
+
+    def dot(u, v):
+        return float(u @ corr @ v)
+
+    return dot(a, b) + dot(a, b_prime) + dot(a_prime, b) - dot(a_prime, b_prime)
+
+
+def test_chsh_with_noise():
+    # Phase 28: CHSH with noise
+    # For werner_state(p) = p |Φ+⟩⟨Φ+| + (1−p) I/4 the correlation matrix is
+    # T = p diag(1, −1, 1). The two largest eigenvalues of TᵀT sum to 2 p²,
+    # so the Horodecki value is 2√2 p. chsh_operator attains it.
+    # No setting on a 37 × 73 grid of directions exceeds that value by more than 1e-12.
+    # At p = 0.5 the state is entangled (concurrence > 0) and 2√2 p = √2 < 2,
+    # so it does not violate CHSH.
+    op = chsh_operator().to_matrix()
+    for p in (0.2, 0.5, 1.0):
+        rho = werner_state(p)
+        corr = correlation_matrix(rho)
+        assert np.allclose(corr, p * np.diag([1.0, -1.0, 1.0]), atol=1e-12)
+        bound = 2.0 * np.sqrt(2.0) * p
+        assert np.isclose(chsh_horodecki(rho), bound, atol=1e-12)
+        attained = float(np.real(np.trace(rho @ op)))
+        assert np.isclose(attained, bound, atol=1e-12)
+
+        thetas = np.linspace(0.0, np.pi, 37, endpoint=False)
+        phis = np.linspace(0.0, 2.0 * np.pi, 73, endpoint=False)
+        for alpha, beta in itertools.product(thetas, phis):
+            value = _chsh_setting(corr, float(alpha), float(beta))
+            assert value <= bound + 1e-12
+
+    rho_half = werner_state(0.5)
+    assert concurrence(rho_half) > 0.0
+    assert chsh_horodecki(rho_half) < 2.0
